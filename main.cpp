@@ -7,7 +7,7 @@
 #define REL_THRESH 0.85
 void writeDisparityFile (const std::string file_name) {
 	std::ofstream myfile;
-  	myfile.open ("disp_truth.txt");
+  	myfile.open ("results/disp.txt");
 
     png::image<png::gray_pixel_16> image(file_name);
   	int32_t   width_  = image.get_width();
@@ -33,12 +33,14 @@ std::vector<std::vector<float>> getDisparity(const std::string file_name) {
    	float*  data_   = (float*)malloc(width_*height_*sizeof(float));
     for (int32_t v=0; v<height_; v++) {
     	std::vector<float> curr;
-      for (int32_t u=0; u<width_; u++) {
-        uint16_t val = image.get_pixel(u,v);
-        if (val==0) curr.push_back(-1);
-        else       curr.push_back(((float)val)/256.0);
-      }
-      ans.push_back(curr);
+      	for (int32_t u=0; u<width_; u++) {
+			uint16_t val = image.get_pixel(u,v);
+			if (val==0) 
+				curr.push_back(-1);
+			else       
+				curr.push_back(((float)val)/256.0);
+      	}
+    	ans.push_back(curr);
     }
     return ans;
 
@@ -70,10 +72,10 @@ std::vector<std::vector<float>> getDisparity(const std::string file_name) {
 
 
 int main(){
-	std::vector<std::vector<float>> truth=getDisparity("dataset/training/disp_occ_0/000000_10.png");
-	std::vector<std::vector<float>> estimation=getDisparity("CPU/sad/000000_10.png");
-	std::vector<float> errors= getErrors(truth,estimation);
-	std::cout<<errors[0]<<" "<<errors[1]<<"\n";
-
+	// std::vector<std::vector<float>> truth=getDisparity("dataset/training/disp_occ_0/000000_10.png");
+	// std::vector<std::vector<float>> estimation=getDisparity("CPU/sad/000000_10.png");
+	// std::vector<float> errors= getErrors(truth,estimation);
+	// std::cout<<errors[0]<<" "<<errors[1]<<"\n";
+	writeDisparityFile("dataset/training/disp_occ_0/000001_10.png");
 
 }
