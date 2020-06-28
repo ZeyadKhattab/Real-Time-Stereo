@@ -12,7 +12,7 @@
 #include <nmmintrin.h>
 #include <string.h>
 #include <cstdlib>
-
+#include <immintrin.h>
 #define USE_AVX2
 
 // pop count LUT for for uint16
