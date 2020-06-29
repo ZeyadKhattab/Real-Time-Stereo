@@ -5,47 +5,41 @@
 #include <png++/png.hpp>
 #define ABS_THRESH 7.0
 #define REL_THRESH 0.85
-void writeDisparityFile (const std::string file_name) {
-	std::ofstream myfile;
-  	myfile.open ("results/disp.txt");
-
-    png::image<png::gray_pixel_16> image(file_name);
-  	int32_t   width_  = image.get_width();
-   	int32_t  height_ = image.get_height();
-   	float*  data_   = (float*)malloc(width_*height_*sizeof(float));
-    for (int32_t v=0; v<height_; v++) {
-      for (int32_t u=0; u<width_; u++) {
-        uint16_t val = image.get_pixel(u,v);
-        if (val==0) myfile<<-1<<" ";
-        else        myfile<<((float)val)/256.0<<" ";
-      }
-      myfile<<"\n";
-    }
-     myfile.close();
-
-  }
-
-std::vector<std::vector<float>> getDisparity(const std::string file_name) {
+std::vector<std::vector<float>> getDisparity(const std::string file_name,bool groundTruth) {
 	std::vector<std::vector<float>> ans;
-    png::image<png::gray_pixel_16> image(file_name);
-  	int32_t   width_  = image.get_width();
+	png::image<png::gray_pixel_16> image(file_name);
+	int32_t   width_  = image.get_width();
    	int32_t  height_ = image.get_height();
    	float*  data_   = (float*)malloc(width_*height_*sizeof(float));
     for (int32_t v=0; v<height_; v++) {
     	std::vector<float> curr;
       	for (int32_t u=0; u<width_; u++) {
 			uint16_t val = image.get_pixel(u,v);
-			if (val==0) 
-				curr.push_back(-1);
-			else       
-				curr.push_back(((float)val)/256.0);
-      	}
+			curr.push_back(groundTruth && val==0?-1:((float)val)/256.0);
+		}
     	ans.push_back(curr);
     }
     return ans;
 
 
   }
+void writeDisparityFile (const std::string file_name,bool groundTruth) {
+	std::ofstream myfile;
+  	myfile.open ("results/disp.txt");
+	std::vector<std::vector<float>>disparity=getDisparity(file_name,groundTruth);
+  	int width  = disparity[0].size();
+   	int height= disparity.size();
+    for (int v=0; v<height; v++) {
+    	for (int u=0; u<width; u++) 
+		{
+			float val = disparity[v][u];
+			myfile<<val<<" ";
+      	}
+    	myfile<<"\n";
+    }
+    myfile.close();
+}
+
   std::vector<float> getErrors(std::vector<std::vector<float>>truth, std::vector<std::vector<float>> estimation){
   	assert(truth.size()==estimation.size());
   	assert(truth[0].size()==estimation[0].size());
@@ -62,7 +56,7 @@ std::vector<std::vector<float>> getDisparity(const std::string file_name) {
   				errors++;
   			pixels++;
   		}
-		std::cout<<minDiff<<"\n";
+	std::cout<<minDiff<<"\n";
   	std::vector<float>ans;
   	ans.push_back(errors);
   	ans.push_back(pixels);
@@ -76,6 +70,7 @@ int main(){
 	// std::vector<std::vector<float>> estimation=getDisparity("CPU/sad/000000_10.png");
 	// std::vector<float> errors= getErrors(truth,estimation);
 	// std::cout<<errors[0]<<" "<<errors[1]<<"\n";
-	writeDisparityFile("dataset/training/disp_occ_0/000001_10.png");
+	writeDisparityFile("results/000004_10.png",false);
+	// writeDisparityFile("dataset/training/disp_occ_0/000001_10.png",false);
 
 }
