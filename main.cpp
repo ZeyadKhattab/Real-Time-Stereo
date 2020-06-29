@@ -3,6 +3,9 @@
 #include <vector>
 #include <math.h>
 #include <png++/png.hpp>
+#include <stdlib.h>
+#include <string>
+
 #define ABS_THRESH 7.0
 #define REL_THRESH 0.85
 std::vector<std::vector<float>> getDisparity(const std::string file_name,bool groundTruth) {
@@ -39,27 +42,30 @@ void writeDisparityFile (const std::string file_name,bool groundTruth) {
     }
     myfile.close();
 }
-
+	/* errors, pixels, MSE */
   std::vector<float> getErrors(std::vector<std::vector<float>>truth, std::vector<std::vector<float>> estimation){
   	assert(truth.size()==estimation.size());
-  	assert(truth[0].size()==estimation[0].size());
+  	//assert(truth[0].size()==estimation[0].size()); //applying dopost increases width? 
   	float pixels=0,errors=0;
 	float minDiff = 1e9;
+	float SSD=0;
   	for(int i=0;i<truth.size();i++)
   		for(int j=0;j<truth[0].size();j++){
   			if(truth[i][j]==-1) continue;
   			float truth_value=truth[i][j],estimation_value=estimation[i][j];
 			minDiff=std::min(minDiff,fabs(truth_value-estimation_value));
-  			bool  err = fabs(truth_value-estimation_value)>ABS_THRESH && 
-  				fabs(truth_value-estimation_value)/fabs(truth_value-estimation_value)>REL_THRESH;
+  			bool err = fabs(truth_value-estimation_value)>ABS_THRESH && 
+  				fabs(truth_value-estimation_value)/fabs(truth_value)>REL_THRESH;
   			if(err)
   				errors++;
   			pixels++;
+			SSD+=(truth_value-estimation_value)*(truth_value-estimation_value);
   		}
-	std::cout<<minDiff<<"\n";
+	//std::cout<<minDiff<<"\n";
   	std::vector<float>ans;
   	ans.push_back(errors);
   	ans.push_back(pixels);
+	ans.push_back(SSD/pixels);
   	return ans;
   }
 
@@ -70,7 +76,30 @@ int main(){
 	// std::vector<std::vector<float>> estimation=getDisparity("CPU/sad/000000_10.png");
 	// std::vector<float> errors= getErrors(truth,estimation);
 	// std::cout<<errors[0]<<" "<<errors[1]<<"\n";
-	writeDisparityFile("results/000004_10.png",false);
-	// writeDisparityFile("dataset/training/disp_occ_0/000001_10.png",false);
+	//writeDisparityFile("results/000004_10.png",false);
+	//writeDisparityFile("dataset/training/disp_occ_0/000001_10.png",false);
+	std::string image_name="000000_10.png";
+	std::string left_image_name="dataset/training/image_2/000000_10.png";
+	std::string right_image_name="dataset/training/image_3/000000_10.png";
+	std::string methods[3]={"census","ncc","sad"};
+	std::vector<std::vector<float>> truth=getDisparity("dataset/training/disp_occ_0/"+image_name,true);
+	float minError=1e9;
+	for(int wsize=1;wsize<=21;wsize++)
+		for(int dopost=0;dopost<=1;dopost++)
+			for(int postconf=0;postconf<=1;postconf++){
+				for(std::string method:methods){
+					std::string cmd="./CPU/"+method+"/"+method;
+					cmd+=" -l "+left_image_name+" -r "+right_image_name+" -ndisp 256"+" -wsize "+ std::to_string(wsize) + " -out results "+"-out_type png ";
+					if(dopost)
+					cmd+="-dopost ";
+					if(postconf)
+					cmd+="-postconf CPU/post.conf";
+					std::cout<<cmd<<"\n";
+					system(cmd.c_str()); 
+					std::vector<float> errors=getErrors(truth,getDisparity("results/"+image_name,false));
+					minError=std::min(minError,errors[2]);
+				}
+			}
 
+	std::cout<<minError<<"\n";
 }
