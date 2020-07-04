@@ -81,44 +81,6 @@ std::string padNum(int x){
 	ans="0"+ans;
 	return ans;
 }
-int main(){
-	for(int start=0;start<200;start+=20){
-		
-		std::ofstream results;
-		std::string file_name="results/minError"+std::to_string(start)+".txt";
-		results.open (file_name);
-		for(int image=start;image<start+20;image++)
-		{
-			std::string image_name=padNum(image)+"_10.png";
-			std::string left_image_name="dataset/training/image_2/"+image_name;
-			std::string right_image_name="dataset/training/image_3/"+image_name;
-			std::string methods[3]={"census","ncc","sad"};
-			std::vector<std::vector<float>> truth=getDisparity("dataset/training/disp_occ_0/"+image_name,true);
-			float minError=1e9;
-			std::string bestCmd="";
-			for(int wsize=1;wsize<=21;wsize++)
-				for(int dopost=0;dopost<=1;dopost++)
-					for(int postconf=0;postconf<=1;postconf++){
-						for(std::string method:methods){
-							std::string cmd="./CPU/"+method+"/"+method;
-							cmd+=" -l "+left_image_name+" -r "+right_image_name+" -ndisp 256"+" -wsize "+ std::to_string(wsize) + " -out results "+"-out_type png ";
-							if(dopost)
-							cmd+="-dopost ";
-							if(postconf)
-							cmd+="-postconf CPU/post.conf";
-							// std::cout<<cmd<<"\n";
-							system(cmd.c_str()); 
-							std::vector<float> errors=getErrors(truth,getDisparity("results/"+image_name,false));
-							if(errors[2]<minError){
-								minError=errors[2];
-								bestCmd=cmd;
-							}
-						}
-					}
-
-			results<<minError<<"\n"<<bestCmd<<"\n";
-
-		}
-		results.close();
-	}
+int main(int argc, char** argv){
+	std::cout<<getErrors(argv[0],argv[1])[2];
 }
