@@ -68,7 +68,12 @@ void writeDisparityFile (const std::string file_name,bool groundTruth) {
 	ans.push_back(SSD/pixels);
   	return ans;
   }
+std::vector<float> getErrors(const std::string truth_file_name,const std::string estimation_file_name){
+	std::vector<std::vector<float>>truth = getDisparity(truth_file_name,true);
+	std::vector<std::vector<float>> estimation= getDisparity(estimation_file_name,false);
+	return getErrors(truth,estimation);
 
+}
 
 std::string padNum(int x){
 	std::string ans=std::to_string(x);
