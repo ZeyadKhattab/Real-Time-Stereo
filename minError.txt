@@ -238,3 +238,123 @@
 ./CPU/census/census -l dataset/training/image_2/000118_10.png -r dataset/training/image_3/000118_10.png -ndisp 256 -wsize 20 -out results -out_type png -dopost 
 110.031
 ./CPU/census/census -l dataset/training/image_2/000119_10.png -r dataset/training/image_3/000119_10.png -ndisp 256 -wsize 18 -out results -out_type png -dopost 
+268.271
+./CPU/ncc/ncc -l dataset/training/image_2/000120_10.png -r dataset/training/image_3/000120_10.png -ndisp 256 -wsize 15 -out results -out_type png -dopost 
+45.7148
+./CPU/census/census -l dataset/training/image_2/000121_10.png -r dataset/training/image_3/000121_10.png -ndisp 256 -wsize 17 -out results -out_type png -dopost 
+70.7902
+./CPU/census/census -l dataset/training/image_2/000122_10.png -r dataset/training/image_3/000122_10.png -ndisp 256 -wsize 20 -out results -out_type png -dopost 
+83.311
+./CPU/census/census -l dataset/training/image_2/000123_10.png -r dataset/training/image_3/000123_10.png -ndisp 256 -wsize 20 -out results -out_type png -dopost 
+59.5163
+./CPU/census/census -l dataset/training/image_2/000124_10.png -r dataset/training/image_3/000124_10.png -ndisp 256 -wsize 21 -out results -out_type png -dopost 
+46.1739
+./CPU/census/census -l dataset/training/image_2/000125_10.png -r dataset/training/image_3/000125_10.png -ndisp 256 -wsize 19 -out results -out_type png -dopost 
+161.478
+./CPU/census/census -l dataset/training/image_2/000126_10.png -r dataset/training/image_3/000126_10.png -ndisp 256 -wsize 21 -out results -out_type png -dopost 
+42.9332
+./CPU/census/census -l dataset/training/image_2/000127_10.png -r dataset/training/image_3/000127_10.png -ndisp 256 -wsize 21 -out results -out_type png -dopost 
+78.3583
+./CPU/census/census -l dataset/training/image_2/000128_10.png -r dataset/training/image_3/000128_10.png -ndisp 256 -wsize 18 -out results -out_type png -dopost 
+71.8042
+./CPU/ncc/ncc -l dataset/training/image_2/000129_10.png -r dataset/training/image_3/000129_10.png -ndisp 256 -wsize 15 -out results -out_type png -dopost 
+39.3446
+./CPU/ncc/ncc -l dataset/training/image_2/000130_10.png -r dataset/training/image_3/000130_10.png -ndisp 256 -wsize 10 -out results -out_type png -dopost 
+222.904
+./CPU/ncc/ncc -l dataset/training/image_2/000131_10.png -r dataset/training/image_3/000131_10.png -ndisp 256 -wsize 15 -out results -out_type png -dopost 
+186.28
+./CPU/ncc/ncc -l dataset/training/image_2/000132_10.png -r dataset/training/image_3/000132_10.png -ndisp 256 -wsize 15 -out results -out_type png -dopost 
+50.9436
+./CPU/ncc/ncc -l dataset/training/image_2/000133_10.png -r dataset/training/image_3/000133_10.png -ndisp 256 -wsize 11 -out results -out_type png -dopost 
+122.61
+./CPU/ncc/ncc -l dataset/training/image_2/000134_10.png -r dataset/training/image_3/000134_10.png -ndisp 256 -wsize 15 -out results -out_type png -dopost 
+59.437
+./CPU/census/census -l dataset/training/image_2/000135_10.png -r dataset/training/image_3/000135_10.png -ndisp 256 -wsize 17 -out results -out_type png -dopost 
+511.95
+./CPU/ncc/ncc -l dataset/training/image_2/000136_10.png -r dataset/training/image_3/000136_10.png -ndisp 256 -wsize 15 -out results -out_type png -dopost 
+97.8333
+./CPU/census/census -l dataset/training/image_2/000137_10.png -r dataset/training/image_3/000137_10.png -ndisp 256 -wsize 21 -out results -out_type png -dopost 
+54.4077
+./CPU/ncc/ncc -l dataset/training/image_2/000138_10.png -r dataset/training/image_3/000138_10.png -ndisp 256 -wsize 13 -out results -out_type png -dopost 
+55.0782
+./CPU/census/census -l dataset/training/image_2/000139_10.png -r dataset/training/image_3/000139_10.png -ndisp 256 -wsize 20 -out results -out_type png -dopost 
+49.3817
+./CPU/census/census -l dataset/training/image_2/000140_10.png -r dataset/training/image_3/000140_10.png -ndisp 256 -wsize 20 -out results -out_type png -dopost 
+68.1594
+./CPU/ncc/ncc -l dataset/training/image_2/000141_10.png -r dataset/training/image_3/000141_10.png -ndisp 256 -wsize 15 -out results -out_type png -dopost 
+106.526
+./CPU/ncc/ncc -l dataset/training/image_2/000142_10.png -r dataset/training/image_3/000142_10.png -ndisp 256 -wsize 15 -out results -out_type png -dopost 
+255.568
+./CPU/sad/sad -l dataset/training/image_2/000143_10.png -r dataset/training/image_3/000143_10.png -ndisp 256 -wsize 1 -out results -out_type png -dopost 
+107.574
+./CPU/ncc/ncc -l dataset/training/image_2/000144_10.png -r dataset/training/image_3/000144_10.png -ndisp 256 -wsize 15 -out results -out_type png -dopost 
+85.4435
+./CPU/census/census -l dataset/training/image_2/000145_10.png -r dataset/training/image_3/000145_10.png -ndisp 256 -wsize 20 -out results -out_type png -dopost 
+50.7594
+./CPU/ncc/ncc -l dataset/training/image_2/000146_10.png -r dataset/training/image_3/000146_10.png -ndisp 256 -wsize 12 -out results -out_type png -dopost 
+57.9732
+./CPU/ncc/ncc -l dataset/training/image_2/000147_10.png -r dataset/training/image_3/000147_10.png -ndisp 256 -wsize 13 -out results -out_type png -dopost 
+49.1199
+./CPU/census/census -l dataset/training/image_2/000148_10.png -r dataset/training/image_3/000148_10.png -ndisp 256 -wsize 18 -out results -out_type png -dopost 
+61.3673
+./CPU/ncc/ncc -l dataset/training/image_2/000149_10.png -r dataset/training/image_3/000149_10.png -ndisp 256 -wsize 12 -out results -out_type png -dopost 
+266.855
+./CPU/ncc/ncc -l dataset/training/image_2/000150_10.png -r dataset/training/image_3/000150_10.png -ndisp 256 -wsize 15 -out results -out_type png -dopost 
+102.495
+./CPU/ncc/ncc -l dataset/training/image_2/000151_10.png -r dataset/training/image_3/000151_10.png -ndisp 256 -wsize 14 -out results -out_type png -dopost 
+102.804
+./CPU/ncc/ncc -l dataset/training/image_2/000152_10.png -r dataset/training/image_3/000152_10.png -ndisp 256 -wsize 15 -out results -out_type png -dopost 
+213.404
+./CPU/sad/sad -l dataset/training/image_2/000153_10.png -r dataset/training/image_3/000153_10.png -ndisp 256 -wsize 1 -out results -out_type png -dopost 
+710.835
+./CPU/ncc/ncc -l dataset/training/image_2/000154_10.png -r dataset/training/image_3/000154_10.png -ndisp 256 -wsize 20 -out results -out_type png -dopost 
+231.427
+./CPU/census/census -l dataset/training/image_2/000155_10.png -r dataset/training/image_3/000155_10.png -ndisp 256 -wsize 21 -out results -out_type png -dopost 
+90.2846
+./CPU/ncc/ncc -l dataset/training/image_2/000156_10.png -r dataset/training/image_3/000156_10.png -ndisp 256 -wsize 12 -out results -out_type png -dopost 
+159.511
+./CPU/census/census -l dataset/training/image_2/000157_10.png -r dataset/training/image_3/000157_10.png -ndisp 256 -wsize 20 -out results -out_type png -dopost 
+86.417
+./CPU/census/census -l dataset/training/image_2/000158_10.png -r dataset/training/image_3/000158_10.png -ndisp 256 -wsize 17 -out results -out_type png -dopost 
+71.2492
+./CPU/census/census -l dataset/training/image_2/000159_10.png -r dataset/training/image_3/000159_10.png -ndisp 256 -wsize 21 -out results -out_type png -dopost 
+97.7765
+./CPU/census/census -l dataset/training/image_2/000160_10.png -r dataset/training/image_3/000160_10.png -ndisp 256 -wsize 17 -out results -out_type png -dopost 
+1269.13
+./CPU/sad/sad -l dataset/training/image_2/000161_10.png -r dataset/training/image_3/000161_10.png -ndisp 256 -wsize 21 -out results -out_type png 
+155.913
+./CPU/census/census -l dataset/training/image_2/000162_10.png -r dataset/training/image_3/000162_10.png -ndisp 256 -wsize 21 -out results -out_type png -dopost 
+181.884
+./CPU/ncc/ncc -l dataset/training/image_2/000163_10.png -r dataset/training/image_3/000163_10.png -ndisp 256 -wsize 15 -out results -out_type png -dopost 
+618.596
+./CPU/ncc/ncc -l dataset/training/image_2/000164_10.png -r dataset/training/image_3/000164_10.png -ndisp 256 -wsize 15 -out results -out_type png -dopost 
+485.841
+./CPU/ncc/ncc -l dataset/training/image_2/000165_10.png -r dataset/training/image_3/000165_10.png -ndisp 256 -wsize 15 -out results -out_type png -dopost 
+190.195
+./CPU/ncc/ncc -l dataset/training/image_2/000166_10.png -r dataset/training/image_3/000166_10.png -ndisp 256 -wsize 14 -out results -out_type png -dopost 
+140.539
+./CPU/ncc/ncc -l dataset/training/image_2/000167_10.png -r dataset/training/image_3/000167_10.png -ndisp 256 -wsize 15 -out results -out_type png -dopost 
+333.888
+./CPU/census/census -l dataset/training/image_2/000168_10.png -r dataset/training/image_3/000168_10.png -ndisp 256 -wsize 21 -out results -out_type png -dopost 
+452.217
+./CPU/census/census -l dataset/training/image_2/000169_10.png -r dataset/training/image_3/000169_10.png -ndisp 256 -wsize 21 -out results -out_type png -dopost 
+152.676
+./CPU/ncc/ncc -l dataset/training/image_2/000170_10.png -r dataset/training/image_3/000170_10.png -ndisp 256 -wsize 15 -out results -out_type png -dopost 
+144.256
+./CPU/ncc/ncc -l dataset/training/image_2/000171_10.png -r dataset/training/image_3/000171_10.png -ndisp 256 -wsize 15 -out results -out_type png -dopost 
+69.6573
+./CPU/census/census -l dataset/training/image_2/000172_10.png -r dataset/training/image_3/000172_10.png -ndisp 256 -wsize 19 -out results -out_type png -dopost 
+211.065
+./CPU/census/census -l dataset/training/image_2/000173_10.png -r dataset/training/image_3/000173_10.png -ndisp 256 -wsize 21 -out results -out_type png -dopost 
+136.614
+./CPU/census/census -l dataset/training/image_2/000174_10.png -r dataset/training/image_3/000174_10.png -ndisp 256 -wsize 20 -out results -out_type png -dopost 
+129.886
+./CPU/census/census -l dataset/training/image_2/000175_10.png -r dataset/training/image_3/000175_10.png -ndisp 256 -wsize 21 -out results -out_type png -dopost 
+227.051
+./CPU/ncc/ncc -l dataset/training/image_2/000176_10.png -r dataset/training/image_3/000176_10.png -ndisp 256 -wsize 12 -out results -out_type png -dopost 
+130.525
+./CPU/census/census -l dataset/training/image_2/000177_10.png -r dataset/training/image_3/000177_10.png -ndisp 256 -wsize 21 -out results -out_type png -dopost 
+166.297
+./CPU/census/census -l dataset/training/image_2/000178_10.png -r dataset/training/image_3/000178_10.png -ndisp 256 -wsize 18 -out results -out_type png -dopost 
+163.099
+./CPU/ncc/ncc -l dataset/training/image_2/000179_10.png -r dataset/training/image_3/000179_10.png -ndisp 256 -wsize 15 -out results -out_type png -dopost 
