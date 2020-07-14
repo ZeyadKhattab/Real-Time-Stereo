@@ -27,7 +27,7 @@ std::string padNum(int x){
 } 
 int main(int argc, char** argv){
     int l,r;
-    if(argc==2){
+    if(argc==3){
         l=std::stoi(argv[0]);
         r=std::stoi(argv[1]);
     }
