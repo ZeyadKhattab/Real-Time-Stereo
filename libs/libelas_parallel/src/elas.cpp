@@ -375,6 +375,25 @@ inline int16_t Elas::computeMatchingDisparity (const int32_t &u,const int32_t &v
   } else
     return -1;
 }
+__global__ computeSupportMatchesKernel(int16_t* D_can){
+
+    int32_t u,v;
+    int32_t u_can=threadIdx.x+1,v_can=threadIdx.y+1;
+     u = u_can*D_candidate_stepsize;
+     v = v_can*D_candidate_stepsize;
+    // initialize disparity candidate to invalid
+    *(D_can+getAddressOffsetImage(u_can,v_can,D_can_width)) = -1;
+      
+    // find forwards
+    d = computeMatchingDisparity(u,v,I1_desc,I2_desc,false);
+    if (d>=0) {
+      
+      // find backwards
+      d2 = computeMatchingDisparity(u-d,v,I1_desc,I2_desc,true);
+      if (d2>=0 && abs(d-d2)<=param.lr_threshold)
+        *(D_can+getAddressOffsetImage(u_can,v_can,D_can_width)) = d;
+    }
+}
 
 vector<Elas::support_pt> Elas::computeSupportMatches (uint8_t* I1_desc,uint8_t* I2_desc) {
   
@@ -395,26 +414,9 @@ vector<Elas::support_pt> Elas::computeSupportMatches (uint8_t* I1_desc,uint8_t* 
   int32_t u,v;
   int16_t d,d2;
    
-  // for all point candidates in image 1 do
-  for (int32_t u_can=1; u_can<D_can_width; u_can++) {
-    u = u_can*D_candidate_stepsize;
-    for (int32_t v_can=1; v_can<D_can_height; v_can++) {
-      v = v_can*D_candidate_stepsize;
-      
-      // initialize disparity candidate to invalid
-      *(D_can+getAddressOffsetImage(u_can,v_can,D_can_width)) = -1;
-      
-      // find forwards
-      d = computeMatchingDisparity(u,v,I1_desc,I2_desc,false);
-      if (d>=0) {
-        
-        // find backwards
-        d2 = computeMatchingDisparity(u-d,v,I1_desc,I2_desc,true);
-        if (d2>=0 && abs(d-d2)<=param.lr_threshold)
-          *(D_can+getAddressOffsetImage(u_can,v_can,D_can_width)) = d;
-      }
-    }
-  }
+  dim3 dimBlock(1);
+  dim3 dimGrid(D_can_width-1,D_can_height-1);
+  computeSupportMatchesKernel<<<dimBlock,dimGrid>>>(D_can);
   
   // remove inconsistent support points
   removeInconsistentSupportPoints(D_can,D_can_width,D_can_height);
