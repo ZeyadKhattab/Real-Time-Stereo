@@ -20,3 +20,6 @@ nLIq4Mhd
 ./elas pgm_dataset/left/1_left.pgm pgm_dataset/right/1_right.pgm  
 ./elas pgm_dataset/left/AnyConv.com__000001_10.pgm pgm_dataset/right/AnyConv.com__000001_10.pgm
 g++ -I .. convert.cpp -o convert -lpng
+
+
+g++ main.cpp elas.cpp descriptor.cpp matrix.cpp filter.cpp triangle.cpp -o main
