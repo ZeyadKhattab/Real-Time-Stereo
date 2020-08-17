@@ -5,4 +5,5 @@ dataset/devkit
 results/
 papers
 .vscode
-libs/elas
+libs/libelas
+dataset/stereo-pairs

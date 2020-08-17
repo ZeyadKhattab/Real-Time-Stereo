@@ -1,0 +1,22 @@
+g++ test.cpp  -o test
+
+
+g++ test.cpp -I ../../../libs  -o test
+g++ test.cpp -I ../../../libs  -I ../../../libs/libpng -o test
+
+
+g++ -I ../../../libs  -o example example.o `libpng-config --ldflags` 
+
+
+g++  -I libs -c main.cpp `libpng-config --cflags` 
+
+g++ -I libs -o main main.o `libpng-config --ldflags` 
+
+
+g++ -I libs main.cpp -o main -lpng
+
+nLIq4Mhd
+
+./elas pgm_dataset/left/1_left.pgm pgm_dataset/right/1_right.pgm  
+./elas pgm_dataset/left/AnyConv.com__000001_10.pgm pgm_dataset/right/AnyConv.com__000001_10.pgm
+g++ -I .. convert.cpp -o convert -lpng
