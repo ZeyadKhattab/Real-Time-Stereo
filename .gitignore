@@ -1,9 +1,6 @@
 *.d
-dataset/training
-dataset/testing
-dataset/devkit
 results/
 papers
 .vscode
 libs/libelas
-dataset/stereo-pairs
+dataset
