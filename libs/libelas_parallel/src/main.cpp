@@ -24,7 +24,7 @@ Street, Fifth Floor, Boston, MA 02110-1301, USA
 #include <iostream>
 #include "elas.h"
 #include "image.h"
-
+#include <algorithm>
 using namespace std;
 
 // compute disparities of pgm image input pair file_1, file_2
