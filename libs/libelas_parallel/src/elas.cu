@@ -281,6 +281,12 @@ inline int16_t Elas::computeMatchingDisparity (const int32_t &u,const int32_t &v
   int32_t desc_offset_4 = +16*u_step+16*width*v_step;
   
   __m128i xmm1,xmm2,xmm3,xmm4,xmm5,xmm6;
+  uint8_t *a1,*a2,*a3,*a4,*a5;
+  a1=(uint8_t*)malloc(16*sizeof(uint8_t));
+  a2=(uint8_t*)malloc(16*sizeof(uint8_t));
+  a3=(uint8_t*)malloc(16*sizeof(uint8_t));
+  a4=(uint8_t*)malloc(16*sizeof(uint8_t));
+  a5=(uint8_t*)malloc(16*sizeof(uint8_t));
 
   // check if we are inside the image region
   if (u>=window_size+u_step && u<=width-window_size-1-u_step && v>=window_size+v_step && v<=height-window_size-1-v_step) {
@@ -312,10 +318,15 @@ inline int16_t Elas::computeMatchingDisparity (const int32_t &u,const int32_t &v
     xmm2 = _mm_load_si128((__m128i*)(I1_block_addr+desc_offset_2));
     xmm3 = _mm_load_si128((__m128i*)(I1_block_addr+desc_offset_3));
     xmm4 = _mm_load_si128((__m128i*)(I1_block_addr+desc_offset_4));
-    
+    for(int i=0;i<16;i++){
+      a1[i] = *(I1_block_addr+desc_offset_1+i);
+      a2[i] = *(I1_block_addr+desc_offset_2+i);
+      a3[i] = *(I1_block_addr+desc_offset_3+i);
+      a4[i] = *(I1_block_addr+desc_offset_4+i);
+      // std::cout<<a1[i]<<"\n";
+    }
     // declare match energy for each disparity
     int32_t u_warp;
-    
     // best match
     int16_t min_1_E = 32767;
     int16_t min_1_d = -1;
@@ -334,6 +345,7 @@ inline int16_t Elas::computeMatchingDisparity (const int32_t &u,const int32_t &v
 
     // for all disparities do
     for (int16_t d=disp_min_valid; d<=disp_max_valid; d++) {
+      int32_t cost=0;
 
       // warp u coordinate
       if (!right_image) u_warp = u-d;
@@ -352,7 +364,23 @@ inline int16_t Elas::computeMatchingDisparity (const int32_t &u,const int32_t &v
       xmm5 = _mm_load_si128((__m128i*)(I2_block_addr+desc_offset_4));
       xmm6 = _mm_add_epi16(_mm_sad_epu8(xmm4,xmm5),xmm6);
       sum  = _mm_extract_epi16(xmm6,0)+_mm_extract_epi16(xmm6,4);
-
+      for(int i=0;i<16;i++){
+        a5[i] = *(I2_block_addr+desc_offset_1+i);
+        cost+=abs(a1[i]-a5[i]);
+      }
+      for(int i=0;i<16;i++){
+        a5[i] = *(I2_block_addr+desc_offset_2+i);
+        cost+=abs(a2[i]-a5[i]);
+      }
+      for(int i=0;i<16;i++){
+        a5[i] = *(I2_block_addr+desc_offset_3+i);
+        cost+=abs(a3[i]-a5[i]);
+      }
+      for(int i=0;i<16;i++){
+        a5[i] = *(I2_block_addr+desc_offset_4+i);
+        cost+=abs(a4[i]-a5[i]);
+      }
+      // sum=cost;
       // best + second best match
       if (sum<min_1_E) {
         min_2_E = min_1_E;   
@@ -374,11 +402,25 @@ inline int16_t Elas::computeMatchingDisparity (const int32_t &u,const int32_t &v
   } else
     return -1;
 }
-__global__ void computeSupportMatchesKernel(int16_t* D_can,parameters param,uint8_t* I1_desc,uint8_t* I2_desc,int32_t D_can_width,int32_t D_can_height,int32_t width,int32_t height){
-
+__global__ void computeSupportMatchesKernel(int16_t* D_can,parameters param,uint8_t* I1_desc,uint8_t* I2_desc,int32_t D_can_width,int32_t D_can_height,int32_t width,int32_t height,uint8_t* a1,uint8_t* a2,uint8_t* a3,uint8_t* a4,uint8_t *a5){
     int32_t D_candidate_stepsize = param.candidate_stepsize;
     int16_t ret1,ret2;
+    printf("in kernel\n");
+    if(threadIdx.x+threadIdx.y+blockIdx.x==0){
+      printf("param = %d, width = %d, height= %d\n",param.candidate_stepsize,width,height);
 
+      // printf("%d %d %d\n",threadIdx.x,threadIdx.y,blockIdx.x);
+      for(int i=3;i<4;i++){
+        for(int j=3;j<4;j++){
+          
+          for(int k=0;k<16;k++){
+            printf("k = %d\n",k);
+            // printf("desc = %d and k = %d\n",(int)I2_desc[16*(width*i+j)+k],k);
+          }
+        }
+      }
+    }
+    
     int32_t u,v;
     int32_t u_can=threadIdx.x+1,v_can=threadIdx.y+1;
      u = u_can*D_candidate_stepsize;
@@ -400,7 +442,6 @@ __global__ void computeSupportMatchesKernel(int16_t* D_can,parameters param,uint
       int32_t desc_offset_3 = -16*u_step+16*width*v_step;
       int32_t desc_offset_4 = +16*u_step+16*width*v_step;
       
-      __m128i xmm1,xmm2,xmm3,xmm4,xmm5,xmm6;
     
       // check if we are inside the image region
       if (u>=window_size+u_step && u<=width-window_size-1-u_step && v>=window_size+v_step && v<=height-window_size-1-v_step) {
@@ -429,10 +470,13 @@ __global__ void computeSupportMatchesKernel(int16_t* D_can,parameters param,uint
         else
         {
             // load first blocks to xmm registers
-          xmm1 = _mm_load_si128((__m128i*)(I1_block_addr+desc_offset_1));
-          xmm2 = _mm_load_si128((__m128i*)(I1_block_addr+desc_offset_2));
-          xmm3 = _mm_load_si128((__m128i*)(I1_block_addr+desc_offset_3));
-          xmm4 = _mm_load_si128((__m128i*)(I1_block_addr+desc_offset_4));
+            for(int i=0;i<16;i++){
+              a1[i] = *(I1_block_addr+desc_offset_1+i);
+              a2[i] = *(I1_block_addr+desc_offset_2+i);
+              a3[i] = *(I1_block_addr+desc_offset_3+i);
+              a4[i] = *(I1_block_addr+desc_offset_4+i);
+              // std::cout<<a1[i]<<"\n";
+            }
           
           // declare match energy for each disparity
           int32_t u_warp;
@@ -463,18 +507,25 @@ __global__ void computeSupportMatchesKernel(int16_t* D_can,parameters param,uint
       
             // compute I2 block start addresses
             I2_block_addr = I2_line_addr+16*u_warp;
-      
+            int32_t cost=0;
             // compute match energy at this disparity
-            xmm6 = _mm_load_si128((__m128i*)(I2_block_addr+desc_offset_1));
-            xmm6 = _mm_sad_epu8(xmm1,xmm6);
-            xmm5 = _mm_load_si128((__m128i*)(I2_block_addr+desc_offset_2));
-            xmm6 = _mm_add_epi16(_mm_sad_epu8(xmm2,xmm5),xmm6);
-            xmm5 = _mm_load_si128((__m128i*)(I2_block_addr+desc_offset_3));
-            xmm6 = _mm_add_epi16(_mm_sad_epu8(xmm3,xmm5),xmm6);
-            xmm5 = _mm_load_si128((__m128i*)(I2_block_addr+desc_offset_4));
-            xmm6 = _mm_add_epi16(_mm_sad_epu8(xmm4,xmm5),xmm6);
-            sum  = _mm_extract_epi16(xmm6,0)+_mm_extract_epi16(xmm6,4);
-      
+            for(int i=0;i<16;i++){
+              a5[i] = *(I2_block_addr+desc_offset_1+i);
+              cost+=abs(a1[i]-a5[i]);
+            }
+            for(int i=0;i<16;i++){
+              a5[i] = *(I2_block_addr+desc_offset_2+i);
+              cost+=abs(a2[i]-a5[i]);
+            }
+            for(int i=0;i<16;i++){
+              a5[i] = *(I2_block_addr+desc_offset_3+i);
+              cost+=abs(a3[i]-a5[i]);
+            }
+            for(int i=0;i<16;i++){
+              a5[i] = *(I2_block_addr+desc_offset_4+i);
+              cost+=abs(a4[i]-a5[i]);
+            }
+            sum=cost;
             // best + second best match
             if (sum<min_1_E) {
               min_2_E = min_1_E;   
@@ -508,7 +559,7 @@ __global__ void computeSupportMatchesKernel(int16_t* D_can,parameters param,uint
 
     }
     int16_t d=ret1;
-
+    // printf("%d\n",d);
     // for all disparities do
     
     
@@ -530,7 +581,6 @@ __global__ void computeSupportMatchesKernel(int16_t* D_can,parameters param,uint
       int32_t desc_offset_3 = -16*u_step+16*width*v_step;
       int32_t desc_offset_4 = +16*u_step+16*width*v_step;
       
-      __m128i xmm1,xmm2,xmm3,xmm4,xmm5,xmm6;
     
       // check if we are inside the image region
       if (u>=window_size+u_step && u<=width-window_size-1-u_step && v>=window_size+v_step && v<=height-window_size-1-v_step) {
@@ -555,14 +605,17 @@ __global__ void computeSupportMatchesKernel(int16_t* D_can,parameters param,uint
         for (int32_t i=0; i<16; i++)
           sum += abs((int32_t)(*(I1_block_addr+i))-128);
         if (sum<param.support_texture)
-        ret2=-1;
+          ret2=-1;
         else
         {
             // load first blocks to xmm registers
-          xmm1 = _mm_load_si128((__m128i*)(I1_block_addr+desc_offset_1));
-          xmm2 = _mm_load_si128((__m128i*)(I1_block_addr+desc_offset_2));
-          xmm3 = _mm_load_si128((__m128i*)(I1_block_addr+desc_offset_3));
-          xmm4 = _mm_load_si128((__m128i*)(I1_block_addr+desc_offset_4));
+            for(int i=0;i<16;i++){
+              a1[i] = *(I1_block_addr+desc_offset_1+i);
+              a2[i] = *(I1_block_addr+desc_offset_2+i);
+              a3[i] = *(I1_block_addr+desc_offset_3+i);
+              a4[i] = *(I1_block_addr+desc_offset_4+i);
+              // std::cout<<a1[i]<<"\n";
+            }
           
           // declare match energy for each disparity
           int32_t u_warp;
@@ -590,21 +643,29 @@ __global__ void computeSupportMatchesKernel(int16_t* D_can,parameters param,uint
             // warp u coordinate
             if (!right_image) u_warp = u-d;
             else              u_warp = u+d;
-      
+            int32_t cost=0;
+
             // compute I2 block start addresses
             I2_block_addr = I2_line_addr+16*u_warp;
       
             // compute match energy at this disparity
-            xmm6 = _mm_load_si128((__m128i*)(I2_block_addr+desc_offset_1));
-            xmm6 = _mm_sad_epu8(xmm1,xmm6);
-            xmm5 = _mm_load_si128((__m128i*)(I2_block_addr+desc_offset_2));
-            xmm6 = _mm_add_epi16(_mm_sad_epu8(xmm2,xmm5),xmm6);
-            xmm5 = _mm_load_si128((__m128i*)(I2_block_addr+desc_offset_3));
-            xmm6 = _mm_add_epi16(_mm_sad_epu8(xmm3,xmm5),xmm6);
-            xmm5 = _mm_load_si128((__m128i*)(I2_block_addr+desc_offset_4));
-            xmm6 = _mm_add_epi16(_mm_sad_epu8(xmm4,xmm5),xmm6);
-            sum  = _mm_extract_epi16(xmm6,0)+_mm_extract_epi16(xmm6,4);
-      
+            for(int i=0;i<16;i++){
+              a5[i] = *(I2_block_addr+desc_offset_1+i);
+              cost+=abs(a1[i]-a5[i]);
+            }
+            for(int i=0;i<16;i++){
+              a5[i] = *(I2_block_addr+desc_offset_2+i);
+              cost+=abs(a2[i]-a5[i]);
+            }
+            for(int i=0;i<16;i++){
+              a5[i] = *(I2_block_addr+desc_offset_3+i);
+              cost+=abs(a3[i]-a5[i]);
+            }
+            for(int i=0;i<16;i++){
+              a5[i] = *(I2_block_addr+desc_offset_4+i);
+              cost+=abs(a4[i]-a5[i]);
+            }
+            sum=cost;
             // best + second best match
             if (sum<min_1_E) {
               min_2_E = min_1_E;   
@@ -631,7 +692,7 @@ __global__ void computeSupportMatchesKernel(int16_t* D_can,parameters param,uint
       
         
       } else
-        ret2= -1;
+      ret2= -1;
 
 
 
@@ -647,7 +708,7 @@ __global__ void computeSupportMatchesKernel(int16_t* D_can,parameters param,uint
 }
 
 vector<Elas::support_pt> Elas::computeSupportMatches (uint8_t* I1_desc,uint8_t* I2_desc) {
-  
+  cudaError_t err = cudaSuccess;
   // be sure that at half resolution we only need data
   // from every second line!
   int32_t D_candidate_stepsize = param.candidate_stepsize;
@@ -659,16 +720,56 @@ vector<Elas::support_pt> Elas::computeSupportMatches (uint8_t* I1_desc,uint8_t* 
   int32_t D_can_height = 0;
   for (int32_t u=0; u<width;  u+=D_candidate_stepsize) D_can_width++;
   for (int32_t v=0; v<height; v+=D_candidate_stepsize) D_can_height++;
-  int16_t* D_can = (int16_t*)calloc(D_can_width*D_can_height,sizeof(int16_t));
-
+  int16_t* D_can;
+  err=cudaMalloc(&D_can,D_can_width*D_can_height*sizeof(int16_t));
+  if(err!=cudaSuccess)
+    cout<<"allocated D_can\n";
+  else
+    cout<<"Couldnt't allocate D_can \n";
   // loop variables
   int32_t u,v;
   int16_t d,d2;
    
-  dim3 dimBlock(1);
-  dim3 dimGrid(D_can_width-1,D_can_height-1);
-  computeSupportMatchesKernel<<<dimBlock,dimGrid>>>(D_can,param,I1_desc,I2_desc,D_can_width,D_can_height,width,height);
-  
+  dim3 dimBlock(2);
+  dim3 dimGrid(2,2);
+  uint8_t *a1,*a2,*a3,*a4,*a5;
+  size_t size = 16*sizeof(uint8_t);
+
+  err=cudaMalloc(&a1, size);
+  if(err!=cudaSuccess)
+
+  cout<<"allocated arrays a\n";
+else
+cout<<"error";
+  err=cudaMalloc(&a2, size);
+  err=cudaMalloc(&a3, size);
+  err=cudaMalloc(&a4, size);
+  err=cudaMalloc(&a5, size);
+  if(err!=cudaSuccess)
+
+  cout<<"allocated arrays a\n";
+else
+cout<<"error";
+  uint8_t* d_I1_desc;
+  uint8_t* d_I2_desc;
+  size=16*width*height*sizeof(uint8_t);
+  err=cudaMalloc(&d_I1_desc,size);
+  err=cudaMalloc(&d_I2_desc,size);
+  err=cudaMemcpy(d_I1_desc,I1_desc,size,cudaMemcpyHostToDevice);
+  err=cudaMemcpy(d_I2_desc,I2_desc,size,cudaMemcpyHostToDevice);
+  if (err != cudaSuccess){
+    std::cout<<"error\n";
+  }
+  cudaDeviceSynchronize();
+cout<<"allocated and copied desc\n";
+  computeSupportMatchesKernel<<<dimBlock,dimGrid>>>(D_can,param,d_I1_desc,d_I2_desc,D_can_width,D_can_height,width,height,a1,a2,a3,a4,a5);
+  err = cudaGetLastError();
+
+    if (err != cudaSuccess){
+      std::cout<<"error\n";
+
+    }
+  //diff between D-can kernal and device  
   // remove inconsistent support points
   removeInconsistentSupportPoints(D_can,D_can_width,D_can_height);
   
