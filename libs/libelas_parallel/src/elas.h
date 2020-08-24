@@ -31,7 +31,8 @@ Street, Fifth Floor, Boston, MA 02110-1301, USA
 #include <vector>
 #include <emmintrin.h>
 #include "parameters.h"
-
+#include "triangle_object.h"
+#include "support_pt.h"
 // define fixed-width datatypes for Visual Studio projects
 // #ifndef _MSC_VER
   #include <stdint.h>
@@ -164,19 +165,19 @@ public:
   void hello(int x);
 private:
   
-  struct support_pt {
-    int32_t u;
-    int32_t v;
-    int32_t d;
-    support_pt(int32_t u,int32_t v,int32_t d):u(u),v(v),d(d){}
-  };
+  // struct support_pt {
+  //   int32_t u;
+  //   int32_t v;
+  //   int32_t d;
+  //   support_pt(int32_t u,int32_t v,int32_t d):u(u),v(v),d(d){}
+  // };
 
-  struct triangle {
-    int32_t c1,c2,c3;
-    float   t1a,t1b,t1c;
-    float   t2a,t2b,t2c;
-    triangle(int32_t c1,int32_t c2,int32_t c3):c1(c1),c2(c2),c3(c3){}
-  };
+  // struct triangle {
+  //   int32_t c1,c2,c3;
+  //   float   t1a,t1b,t1c;
+  //   float   t2a,t2b,t2c;
+  //   triangle(int32_t c1,int32_t c2,int32_t c3):c1(c1),c2(c2),c3(c3){}
+  // };
 
   inline uint32_t getAddressOffsetImage (const int32_t& u,const int32_t& v,const int32_t& width) {
     return v*width+u;

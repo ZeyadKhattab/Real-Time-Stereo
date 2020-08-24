@@ -101,7 +101,6 @@ void Elas::hello(int x){
   
   createGrid(p_support,disparity_grid_1,grid_dims,0);
   createGrid(p_support,disparity_grid_2,grid_dims,1);
-
 #ifdef PROFILE
   timer.start("Matching");
 #endif
@@ -698,7 +697,7 @@ __global__ void computeSupportMatchesKernel(int16_t* D_can,parameters param,uint
     
 }
 
-vector<Elas::support_pt> Elas::computeSupportMatches (uint8_t* I1_desc,uint8_t* I2_desc) {
+vector<support_pt> Elas::computeSupportMatches (uint8_t* I1_desc,uint8_t* I2_desc) {
   cudaError_t err ;
   // be sure that at half resolution we only need data
   // from every second line!
@@ -781,7 +780,7 @@ vector<Elas::support_pt> Elas::computeSupportMatches (uint8_t* I1_desc,uint8_t* 
   return p_support; 
 }
 
-vector<Elas::triangle> Elas::computeDelaunayTriangulation (vector<support_pt> p_support,int32_t right_image) {
+vector<triangle> Elas::computeDelaunayTriangulation (vector<support_pt> p_support,int32_t right_image) {
 
   // input/output structure for triangulation
   struct triangulateio in, out;
@@ -1118,10 +1117,105 @@ inline void Elas::findMatch(int32_t &u,int32_t &v,float &plane_a,float &plane_b,
   else          *(D+d_addr) = -1;    // invalid disparity
 }
 
+__global__ void computeDisparityKernel(bool right_image,bool subsampling,support_pt * p_support,triangle * tri){
+  uint32_t i =threadIdx.x;
+  int32_t c1, c2, c3;
+  float plane_a,plane_b,plane_c,plane_d;
+  // get plane parameters
+  uint32_t p_i = i*3;
+  if (!right_image) {
+    plane_a = tri[i].t1a;
+    plane_b = tri[i].t1b;
+    plane_c = tri[i].t1c;
+    plane_d = tri[i].t2a;
+  } else {
+    plane_a = tri[i].t2a;
+    plane_b = tri[i].t2b;
+    plane_c = tri[i].t2c;
+    plane_d = tri[i].t1a;
+  }
+  
+  
+  // triangle corners
+  c1 = tri[i].c1;
+  c2 = tri[i].c2;
+  c3 = tri[i].c3;
+
+  // sort triangle corners wrt. u (ascending)    
+  float tri_u[3];
+  if (!right_image) {
+    tri_u[0] = p_support[c1].u;
+    tri_u[1] = p_support[c2].u;
+    tri_u[2] = p_support[c3].u;
+  } else {
+    tri_u[0] = p_support[c1].u-p_support[c1].d;
+    tri_u[1] = p_support[c2].u-p_support[c2].d;
+    tri_u[2] = p_support[c3].u-p_support[c3].d;
+  }
+  float tri_v[3] = {p_support[c1].v,p_support[c2].v,p_support[c3].v};
+  
+  for (uint32_t j=0; j<3; j++) {
+    for (uint32_t k=0; k<j; k++) {
+      if (tri_u[k]>tri_u[j]) {
+        float tri_u_temp = tri_u[j]; tri_u[j] = tri_u[k]; tri_u[k] = tri_u_temp;
+        float tri_v_temp = tri_v[j]; tri_v[j] = tri_v[k]; tri_v[k] = tri_v_temp;
+      }
+    }
+  }
+  
+  // rename corners
+  float A_u = tri_u[0]; float A_v = tri_v[0];
+  float B_u = tri_u[1]; float B_v = tri_v[1];
+  float C_u = tri_u[2]; float C_v = tri_v[2];
+  
+  // compute straight lines connecting triangle corners
+  float AB_a = 0; float AC_a = 0; float BC_a = 0;
+  if ((int32_t)(A_u)!=(int32_t)(B_u)) AB_a = (A_v-B_v)/(A_u-B_u);
+  if ((int32_t)(A_u)!=(int32_t)(C_u)) AC_a = (A_v-C_v)/(A_u-C_u);
+  if ((int32_t)(B_u)!=(int32_t)(C_u)) BC_a = (B_v-C_v)/(B_u-C_u);
+  float AB_b = A_v-AB_a*A_u;
+  float AC_b = A_v-AC_a*A_u;
+  float BC_b = B_v-BC_a*B_u;
+  
+  // a plane is only valid if itself and its projection
+  // into the other image is not too much slanted
+  bool valid = fabs(plane_a)<0.7 && fabs(plane_d)<0.7;
+      
+  // first part (triangle corner A->B)
+  if ((int32_t)(A_u)!=(int32_t)(B_u)) {
+    for (int32_t u=max((int32_t)A_u,0); u<min((int32_t)B_u,width); u++){
+      if (!subsampling || u%2==0) {
+        int32_t v_1 = (uint32_t)(AC_a*(float)u+AC_b);
+        int32_t v_2 = (uint32_t)(AB_a*(float)u+AB_b);
+        for (int32_t v=min(v_1,v_2); v<max(v_1,v_2); v++)
+          if (!subsampling || v%2==0) {
+            findMatch(u,v,plane_a,plane_b,plane_c,disparity_grid,grid_dims,
+                      I1_desc,I2_desc,P,plane_radius,valid,right_image,D);
+          }
+      }
+    }
+  }
+
+  // // second part (triangle corner B->C)
+  // if ((int32_t)(B_u)!=(int32_t)(C_u)) {
+  //   for (int32_t u=max((int32_t)B_u,0); u<min((int32_t)C_u,width); u++){
+  //     if (!param.subsampling || u%2==0) {
+  //       int32_t v_1 = (uint32_t)(AC_a*(float)u+AC_b);
+  //       int32_t v_2 = (uint32_t)(BC_a*(float)u+BC_b);
+  //       for (int32_t v=min(v_1,v_2); v<max(v_1,v_2); v++)
+  //         if (!param.subsampling || v%2==0) {
+  //           findMatch(u,v,plane_a,plane_b,plane_c,disparity_grid,grid_dims,
+  //                     I1_desc,I2_desc,P,plane_radius,valid,right_image,D);
+  //         }
+  //     }
+  //   }
+  // }
+}
 // TODO: %2 => more elegantly
 void Elas::computeDisparity(vector<support_pt> p_support,vector<triangle> tri,int32_t* disparity_grid,int32_t *grid_dims,
                             uint8_t* I1_desc,uint8_t* I2_desc,bool right_image,float* D) {
 
+ 
   // number of disparities
   const int32_t disp_num  = grid_dims[0]-1;
   
@@ -1144,104 +1238,28 @@ void Elas::computeDisparity(vector<support_pt> p_support,vector<triangle> tri,in
     P[delta_d] = (int32_t)((-log(param.gamma+exp(-delta_d*delta_d/two_sigma_squared))+log(param.gamma))/param.beta);
   int32_t plane_radius = (int32_t)max((float)ceil(param.sigma*param.sradius),(float)2.0);
 
-  // loop variables
-  int32_t c1, c2, c3;
-  float plane_a,plane_b,plane_c,plane_d;
-  
+  size_t size;
+  size=p_support.size()*sizeof(p_support);
+  support_pt* d_p_support,*p_support_tmp;
+  p_support_tmp=(support_pt *)malloc(size);
+  for(int i=0;i<p_support.size();i++)
+    p_support_tmp[i]=p_support[i];
+  cudaMalloc(&d_p_support,size);
+  cudaMemcpy(d_p_support,p_support_tmp,size,cudaMemcpyHostToDevice);
+  size=tri.size()*sizeof(triangle);
+  triangle* d_tri,*tri_tmp;
+  tri_tmp=(triangle *)malloc(size);
+  for(int i=0;i<tri.size();i++)
+    tri_tmp[i]=tri[i];
+  cudaMalloc(&d_tri,size);
+  cudaMemcpy(d_tri,tri_tmp,size,cudaMemcpyHostToDevice);
   // for all triangles do
-  for (uint32_t i=0; i<tri.size(); i++) {
-    
-    // get plane parameters
-    uint32_t p_i = i*3;
-    if (!right_image) {
-      plane_a = tri[i].t1a;
-      plane_b = tri[i].t1b;
-      plane_c = tri[i].t1c;
-      plane_d = tri[i].t2a;
-    } else {
-      plane_a = tri[i].t2a;
-      plane_b = tri[i].t2b;
-      plane_c = tri[i].t2c;
-      plane_d = tri[i].t1a;
-    }
-    
-    // triangle corners
-    c1 = tri[i].c1;
-    c2 = tri[i].c2;
-    c3 = tri[i].c3;
-
-    // sort triangle corners wrt. u (ascending)    
-    float tri_u[3];
-    if (!right_image) {
-      tri_u[0] = p_support[c1].u;
-      tri_u[1] = p_support[c2].u;
-      tri_u[2] = p_support[c3].u;
-    } else {
-      tri_u[0] = p_support[c1].u-p_support[c1].d;
-      tri_u[1] = p_support[c2].u-p_support[c2].d;
-      tri_u[2] = p_support[c3].u-p_support[c3].d;
-    }
-    float tri_v[3] = {p_support[c1].v,p_support[c2].v,p_support[c3].v};
-    
-    for (uint32_t j=0; j<3; j++) {
-      for (uint32_t k=0; k<j; k++) {
-        if (tri_u[k]>tri_u[j]) {
-          float tri_u_temp = tri_u[j]; tri_u[j] = tri_u[k]; tri_u[k] = tri_u_temp;
-          float tri_v_temp = tri_v[j]; tri_v[j] = tri_v[k]; tri_v[k] = tri_v_temp;
-        }
-      }
-    }
-    
-    // rename corners
-    float A_u = tri_u[0]; float A_v = tri_v[0];
-    float B_u = tri_u[1]; float B_v = tri_v[1];
-    float C_u = tri_u[2]; float C_v = tri_v[2];
-    
-    // compute straight lines connecting triangle corners
-    float AB_a = 0; float AC_a = 0; float BC_a = 0;
-    if ((int32_t)(A_u)!=(int32_t)(B_u)) AB_a = (A_v-B_v)/(A_u-B_u);
-    if ((int32_t)(A_u)!=(int32_t)(C_u)) AC_a = (A_v-C_v)/(A_u-C_u);
-    if ((int32_t)(B_u)!=(int32_t)(C_u)) BC_a = (B_v-C_v)/(B_u-C_u);
-    float AB_b = A_v-AB_a*A_u;
-    float AC_b = A_v-AC_a*A_u;
-    float BC_b = B_v-BC_a*B_u;
-    
-    // a plane is only valid if itself and its projection
-    // into the other image is not too much slanted
-    bool valid = fabs(plane_a)<0.7 && fabs(plane_d)<0.7;
-        
-    // first part (triangle corner A->B)
-    if ((int32_t)(A_u)!=(int32_t)(B_u)) {
-      for (int32_t u=max((int32_t)A_u,0); u<min((int32_t)B_u,width); u++){
-        if (!param.subsampling || u%2==0) {
-          int32_t v_1 = (uint32_t)(AC_a*(float)u+AC_b);
-          int32_t v_2 = (uint32_t)(AB_a*(float)u+AB_b);
-          for (int32_t v=min(v_1,v_2); v<max(v_1,v_2); v++)
-            if (!param.subsampling || v%2==0) {
-              findMatch(u,v,plane_a,plane_b,plane_c,disparity_grid,grid_dims,
-                        I1_desc,I2_desc,P,plane_radius,valid,right_image,D);
-            }
-        }
-      }
-    }
-
-    // second part (triangle corner B->C)
-    if ((int32_t)(B_u)!=(int32_t)(C_u)) {
-      for (int32_t u=max((int32_t)B_u,0); u<min((int32_t)C_u,width); u++){
-        if (!param.subsampling || u%2==0) {
-          int32_t v_1 = (uint32_t)(AC_a*(float)u+AC_b);
-          int32_t v_2 = (uint32_t)(BC_a*(float)u+BC_b);
-          for (int32_t v=min(v_1,v_2); v<max(v_1,v_2); v++)
-            if (!param.subsampling || v%2==0) {
-              findMatch(u,v,plane_a,plane_b,plane_c,disparity_grid,grid_dims,
-                        I1_desc,I2_desc,P,plane_radius,valid,right_image,D);
-            }
-        }
-      }
-    }
-    
-  }
-
+  computeDisparityKernel<<<1,1024>>>(right_image,param.subsampling,d_p_support,d_tri);
+  cudaFree(d_p_support);
+  cudaFree(d_tri);
+  cudaDeviceSynchronize();
+  free(p_support_tmp);
+  free(tri_tmp);
   delete[] P;
 }
 
