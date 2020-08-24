@@ -30,7 +30,7 @@ Street, Fifth Floor, Boston, MA 02110-1301, USA
 
 using namespace std;
 #define BLOCK_X 32
-
+#define numBlocks 6
 void Elas::hello(int x){
     std::cout<<x<<"\n";
   }
@@ -414,9 +414,13 @@ __global__ void computeSupportMatchesKernel(int16_t* D_can,parameters param,uint
     
     int32_t u,v;
     int32_t u_can,v_can;
-    for(u_can=threadIdx.x+1;u_can<D_can_width;u_can+=BLOCK_X)
-      for(v_can=threadIdx.y+1;v_can<D_can_height;v_can+=BLOCK_X){
-        u = u_can*D_candidate_stepsize;
+    int numThreads=numBlocks*BLOCK_X*BLOCK_X;
+    int bound=(D_can_width-1)*(D_can_height-1);
+    for(int idx=blockIdx.x * BLOCK_X*BLOCK_X + threadIdx.x*BLOCK_X+threadIdx.y;idx<bound;idx+=numThreads){
+      v_can=idx/(D_can_width-1)+1;
+      u_can=idx%(D_can_width-1)+1;
+      
+      u = u_can*D_candidate_stepsize;
         v = v_can*D_candidate_stepsize;
         // initialize disparity candidate to invalid
         *(D_can+v_can*D_can_width+u_can) = -1;
@@ -686,7 +690,11 @@ __global__ void computeSupportMatchesKernel(int16_t* D_can,parameters param,uint
           if (d2>=0 && abs(d-d2)<=param.lr_threshold)
             *(D_can+v_can*D_can_width+u_can) = d;
         }
-      }
+    }
+    // for(u_can=threadIdx.x+1;u_can<D_can_width;u_can+=BLOCK_X)
+    //   for(v_can=threadIdx.y+1;v_can<D_can_height;v_can+=BLOCK_X){
+        
+    //   }
     
 }
 
@@ -711,7 +719,7 @@ vector<Elas::support_pt> Elas::computeSupportMatches (uint8_t* I1_desc,uint8_t* 
   err=cudaMalloc(&d_D_can,D_can_width*D_can_height*sizeof(int16_t));
   if(err!=cudaSuccess) cout<<"Couldnt't allocate D_can \n";
   
-  dim3 dimBlock(1);
+  dim3 dimBlock(numBlocks);
   dim3 dimGrid(BLOCK_X,BLOCK_X);
   size_t size;
 

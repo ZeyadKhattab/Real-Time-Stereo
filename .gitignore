@@ -4,3 +4,6 @@ papers
 .vscode
 libs/libelas
 dataset
+*.exe
+*.exp
+*.lib
