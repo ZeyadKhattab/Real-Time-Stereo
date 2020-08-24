@@ -179,13 +179,13 @@ private:
   //   triangle(int32_t c1,int32_t c2,int32_t c3):c1(c1),c2(c2),c3(c3){}
   // };
 
-  inline uint32_t getAddressOffsetImage (const int32_t& u,const int32_t& v,const int32_t& width) {
-    return v*width+u;
-  }
+  // inline uint32_t getAddressOffsetImage (const int32_t& u,const int32_t& v,const int32_t& width) {
+  //   return v*width+u;
+  // }
 
-  inline uint32_t getAddressOffsetGrid (const int32_t& x,const int32_t& y,const int32_t& d,const int32_t& width,const int32_t& disp_num) {
-    return (y*width+x)*disp_num+d;
-  }
+  // inline uint32_t getAddressOffsetGrid (const int32_t& x,const int32_t& y,const int32_t& d,const int32_t& width,const int32_t& disp_num) {
+  //   return (y*width+x)*disp_num+d;
+  // }
 
   // support point functions
   void removeInconsistentSupportPoints (int16_t* D_can,int32_t D_can_width,int32_t D_can_height);
@@ -201,10 +201,10 @@ private:
   void createGrid (std::vector<support_pt> p_support,int32_t* disparity_grid,int32_t* grid_dims,bool right_image);
 
   // matching
-  inline void updatePosteriorMinimum (__m128i* I2_block_addr,const int32_t &d,const int32_t &w,
-                                      const __m128i &xmm1,__m128i &xmm2,int32_t &val,int32_t &min_val,int32_t &min_d);
-  inline void updatePosteriorMinimum (__m128i* I2_block_addr,const int32_t &d,
-                                      const __m128i &xmm1,__m128i &xmm2,int32_t &val,int32_t &min_val,int32_t &min_d);
+  // inline void updatePosteriorMinimum (__m128i* I2_block_addr,const int32_t &d,const int32_t &w,
+  //                                     const __m128i &xmm1,__m128i &xmm2,int32_t &val,int32_t &min_val,int32_t &min_d);
+  // inline void updatePosteriorMinimum (__m128i* I2_block_addr,const int32_t &d,
+  //                                     const __m128i &xmm1,__m128i &xmm2,int32_t &val,int32_t &min_val,int32_t &min_d);
   
   void computeDisparity (std::vector<support_pt> p_support,std::vector<triangle> tri,int32_t* disparity_grid,int32_t* grid_dims,
                          uint8_t* I1_desc,uint8_t* I2_desc,bool right_image,float* D);

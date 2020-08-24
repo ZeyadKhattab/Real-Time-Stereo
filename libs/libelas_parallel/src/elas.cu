@@ -34,6 +34,13 @@ using namespace std;
 void Elas::hello(int x){
     std::cout<<x<<"\n";
   }
+  __device__ uint32_t getAddressOffsetImage (const int32_t& u,const int32_t& v,const int32_t& width) {
+    return v*width+u;
+  }
+
+  __device__ uint32_t getAddressOffsetGrid (const int32_t& x,const int32_t& y,const int32_t& d,const int32_t& width,const int32_t& disp_num) {
+    return (y*width+x)*disp_num+d;
+  }
  void Elas::process (uint8_t* I1_,uint8_t* I2_,float* D1,float* D2,const int32_t* dims){
   
   // get width, height and bytes per line
@@ -996,7 +1003,7 @@ void Elas::createGrid(vector<support_pt> p_support,int32_t* disparity_grid,int32
   free(temp2);
 }
 
-inline void Elas::updatePosteriorMinimum(__m128i* I2_block_addr,const int32_t &d,const int32_t &w,
+__device__ void updatePosteriorMinimum(__m128i* I2_block_addr,const int32_t &d,const int32_t &w,
                                          const __m128i &xmm1,__m128i &xmm2,int32_t &val,int32_t &min_val,int32_t &min_d) {
   xmm2 = _mm_load_si128(I2_block_addr);
   xmm2 = _mm_sad_epu8(xmm1,xmm2);
@@ -1007,7 +1014,7 @@ inline void Elas::updatePosteriorMinimum(__m128i* I2_block_addr,const int32_t &d
   }
 }
 
-inline void Elas::updatePosteriorMinimum(__m128i* I2_block_addr,const int32_t &d,
+__device__ void updatePosteriorMinimum(__m128i* I2_block_addr,const int32_t &d,
                                          const __m128i &xmm1,__m128i &xmm2,int32_t &val,int32_t &min_val,int32_t &min_d) {
   xmm2 = _mm_load_si128(I2_block_addr);
   xmm2 = _mm_sad_epu8(xmm1,xmm2);
@@ -1020,7 +1027,8 @@ inline void Elas::updatePosteriorMinimum(__m128i* I2_block_addr,const int32_t &d
 
  __device__ void findMatch(int32_t &u,int32_t &v,float &plane_a,float &plane_b,float &plane_c,
                             int32_t* disparity_grid,int32_t *grid_dims,uint8_t* I1_desc,uint8_t* I2_desc,
-                            int32_t *P,int32_t &plane_radius,bool &valid,bool &right_image,float* D){
+                            int32_t *P,int32_t &plane_radius,bool &valid,bool &right_image,float* D,
+                            int32_t width,int32_t height,parameters param){
   // get image width and height
   const int32_t disp_num    = grid_dims[0]-1;
   const int32_t window_size = 2;
@@ -1116,7 +1124,8 @@ inline void Elas::updatePosteriorMinimum(__m128i* I2_block_addr,const int32_t &d
   else          *(D+d_addr) = -1;    // invalid disparity
 }
 
-__global__ void computeDisparityKernel(bool right_image,bool subsampling,support_pt * p_support,triangle * tri,int32_t* disparity_grid,  int32_t *grid_dims,uint8_t* I1_desc,uint8_t* I2_desc,int32_t* P,int32_t plane_radius,float* D,int32_t width){
+__global__ void computeDisparityKernel(bool right_image,bool subsampling,support_pt * p_support,triangle * tri,int32_t* disparity_grid,  int32_t *grid_dims,
+  uint8_t* I1_desc,uint8_t* I2_desc,int32_t* P,int32_t plane_radius,float* D,int32_t width,int32_t height,parameters param){
   uint32_t i =threadIdx.x;
   int32_t c1, c2, c3;
   float plane_a,plane_b,plane_c,plane_d;
@@ -1189,7 +1198,7 @@ __global__ void computeDisparityKernel(bool right_image,bool subsampling,support
         for (int32_t v=min(v_1,v_2); v<max(v_1,v_2); v++)
           if (!subsampling || v%2==0) {
             findMatch(u,v,plane_a,plane_b,plane_c,disparity_grid,grid_dims,
-                      I1_desc,I2_desc,P,plane_radius,valid,right_image,D);
+                      I1_desc,I2_desc,P,plane_radius,valid,right_image,D,width,height,param);
           }
       }
     }
@@ -1204,7 +1213,7 @@ __global__ void computeDisparityKernel(bool right_image,bool subsampling,support
         for (int32_t v=min(v_1,v_2); v<max(v_1,v_2); v++)
           if (!subsampling || v%2==0) {
             findMatch(u,v,plane_a,plane_b,plane_c,disparity_grid,grid_dims,
-                      I1_desc,I2_desc,P,plane_radius,valid,right_image,D);
+                      I1_desc,I2_desc,P,plane_radius,valid,right_image,D,width,height,param);
           }
       }
     }
@@ -1277,7 +1286,7 @@ void Elas::computeDisparity(vector<support_pt> p_support,vector<triangle> tri,in
   cudaMalloc(&d_D,size);
   cudaMemcpy(d_D,D,size,cudaMemcpyHostToDevice);
   // for all triangles do
-  computeDisparityKernel<<<1,1024>>>(right_image,param.subsampling,d_p_support,d_tri,d_disparity_grid,d_grid_dims,d_I1_desc,d_I2_desc,d_P,plane_radius,d_D,width);
+  computeDisparityKernel<<<1,1024>>>(right_image,param.subsampling,d_p_support,d_tri,d_disparity_grid,d_grid_dims,d_I1_desc,d_I2_desc,d_P,plane_radius,d_D,width,height,param);
   size=width*height*sizeof(float);
   cudaMemcpy(D,d_D,size,cudaMemcpyDeviceToHost);
 
