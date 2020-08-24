@@ -26,7 +26,10 @@ Street, Fifth Floor, Boston, MA 02110-1301, USA
 #include "descriptor.h"
 #include "triangle.h"
 #include "matrix.h"
+#include <fstream>
+
 using namespace std;
+#define BLOCK_X 32
 
 void Elas::hello(int x){
     std::cout<<x<<"\n";
@@ -402,313 +405,295 @@ inline int16_t Elas::computeMatchingDisparity (const int32_t &u,const int32_t &v
   } else
     return -1;
 }
-__global__ void computeSupportMatchesKernel(int16_t* D_can,parameters param,uint8_t* I1_desc,uint8_t* I2_desc,int32_t D_can_width,int32_t D_can_height,int32_t width,int32_t height,uint8_t* a1,uint8_t* a2,uint8_t* a3,uint8_t* a4,uint8_t *a5){
+__global__ void computeSupportMatchesKernel(int16_t* D_can,parameters param,uint8_t* I1_desc,uint8_t* I2_desc,int32_t D_can_width,int32_t D_can_height,int32_t width,int32_t height){
     int32_t D_candidate_stepsize = param.candidate_stepsize;
+    if (param.subsampling)
+    D_candidate_stepsize += D_candidate_stepsize%2;
     int16_t ret1,ret2;
-    printf("in kernel\n");
-    if(threadIdx.x+threadIdx.y+blockIdx.x==0){
-      printf("param = %d, width = %d, height= %d\n",param.candidate_stepsize,width,height);
-
-      // printf("%d %d %d\n",threadIdx.x,threadIdx.y,blockIdx.x);
-      for(int i=3;i<4;i++){
-        for(int j=3;j<4;j++){
-          
-          for(int k=0;k<16;k++){
-            printf("k = %d\n",k);
-            // printf("desc = %d and k = %d\n",(int)I2_desc[16*(width*i+j)+k],k);
-          }
-        }
-      }
-    }
+    
     
     int32_t u,v;
-    int32_t u_can=threadIdx.x+1,v_can=threadIdx.y+1;
-     u = u_can*D_candidate_stepsize;
-     v = v_can*D_candidate_stepsize;
-    // initialize disparity candidate to invalid
-    *(D_can+v_can*D_can_width+u_can) = -1;
-      
-    // find forwards
-    // d = computeMatchingDisparity(u,v,I1_desc,I2_desc,false);
-    {
-
-      bool right_image=false;
-      const int32_t u_step      = 2;
-      const int32_t v_step      = 2;
-      const int32_t window_size = 3;
-      
-      int32_t desc_offset_1 = -16*u_step-16*width*v_step;
-      int32_t desc_offset_2 = +16*u_step-16*width*v_step;
-      int32_t desc_offset_3 = -16*u_step+16*width*v_step;
-      int32_t desc_offset_4 = +16*u_step+16*width*v_step;
-      
-    
-      // check if we are inside the image region
-      if (u>=window_size+u_step && u<=width-window_size-1-u_step && v>=window_size+v_step && v<=height-window_size-1-v_step) {
-        
-        // compute desc and start addresses
-        int32_t  line_offset = 16*width*v;
-        uint8_t *I1_line_addr,*I2_line_addr;
-        if (!right_image) {
-          I1_line_addr = I1_desc+line_offset;
-          I2_line_addr = I2_desc+line_offset;
-        } else {
-          I1_line_addr = I2_desc+line_offset;
-          I2_line_addr = I1_desc+line_offset;
-        }
-    
-        // compute I1 block start addresses
-        uint8_t* I1_block_addr = I1_line_addr+16*u;
-        uint8_t* I2_block_addr;
-        
-        // we require at least some texture
-        int32_t sum = 0;
-        for (int32_t i=0; i<16; i++)
-          sum += abs((int32_t)(*(I1_block_addr+i))-128);
-        if (sum<param.support_texture)
-          ret1=-1;
-        else
+    int32_t u_can,v_can;
+    for(u_can=threadIdx.x+1;u_can<D_can_width;u_can+=BLOCK_X)
+      for(v_can=threadIdx.y+1;v_can<D_can_height;v_can+=BLOCK_X){
+        u = u_can*D_candidate_stepsize;
+        v = v_can*D_candidate_stepsize;
+        // initialize disparity candidate to invalid
+        *(D_can+v_can*D_can_width+u_can) = -1;
+          
+        // find forwards
+        // d = computeMatchingDisparity(u,v,I1_desc,I2_desc,false);
         {
-            // load first blocks to xmm registers
-            for(int i=0;i<16;i++){
-              a1[i] = *(I1_block_addr+desc_offset_1+i);
-              a2[i] = *(I1_block_addr+desc_offset_2+i);
-              a3[i] = *(I1_block_addr+desc_offset_3+i);
-              a4[i] = *(I1_block_addr+desc_offset_4+i);
-              // std::cout<<a1[i]<<"\n";
-            }
+    
+          bool right_image=false;
+          const int32_t u_step      = 2;
+          const int32_t v_step      = 2;
+          const int32_t window_size = 3;
           
-          // declare match energy for each disparity
-          int32_t u_warp;
+          int32_t desc_offset_1 = -16*u_step-16*width*v_step;
+          int32_t desc_offset_2 = +16*u_step-16*width*v_step;
+          int32_t desc_offset_3 = -16*u_step+16*width*v_step;
+          int32_t desc_offset_4 = +16*u_step+16*width*v_step;
           
-          // best match
-          int16_t min_1_E = 32767;
-          int16_t min_1_d = -1;
-          int16_t min_2_E = 32767;
-          int16_t min_2_d = -1;
-      
-          // get valid disparity range
-          int32_t disp_min_valid = max(param.disp_min,0);
-          int32_t disp_max_valid = param.disp_max;
-          if (!right_image) disp_max_valid = min(param.disp_max,u-window_size-u_step);
-          else              disp_max_valid = min(param.disp_max,width-u-window_size-u_step);
+        
+          // check if we are inside the image region
+          if (u>=window_size+u_step && u<=width-window_size-1-u_step && v>=window_size+v_step && v<=height-window_size-1-v_step) {
+            
+            // compute desc and start addresses
+            int32_t  line_offset = 16*width*v;
+            uint8_t *I1_line_addr,*I2_line_addr;
+            if (!right_image) {
+              I1_line_addr = I1_desc+line_offset;
+              I2_line_addr = I2_desc+line_offset;
+            } else {
+              I1_line_addr = I2_desc+line_offset;
+              I2_line_addr = I1_desc+line_offset;
+            }
+        
+            // compute I1 block start addresses
+            uint8_t* I1_block_addr = I1_line_addr+16*u;
+            uint8_t* I2_block_addr;
+            
+            // we require at least some texture
+            int32_t sum = 0;
+            for (int32_t i=0; i<16; i++)
+              sum += abs((int32_t)(*(I1_block_addr+i))-128);
+            if (sum<param.support_texture)
+              ret1=-1;
+            else
+            {
+               
+              
+              // declare match energy for each disparity
+              int32_t u_warp;
+              
+              // best match
+              int16_t min_1_E = 32767;
+              int16_t min_1_d = -1;
+              int16_t min_2_E = 32767;
+              int16_t min_2_d = -1;
           
-          // assume, that we can compute at least 10 disparities for this pixel
-          if (disp_max_valid-disp_min_valid<10)
-           ret1=-1;
-          else
-          {
-              // for all disparities do
-          for (int16_t d=disp_min_valid; d<=disp_max_valid; d++) {
-      
-            // warp u coordinate
-            if (!right_image) u_warp = u-d;
-            else              u_warp = u+d;
-      
-            // compute I2 block start addresses
-            I2_block_addr = I2_line_addr+16*u_warp;
-            int32_t cost=0;
-            // compute match energy at this disparity
-            for(int i=0;i<16;i++){
-              a5[i] = *(I2_block_addr+desc_offset_1+i);
-              cost+=abs(a1[i]-a5[i]);
+              // get valid disparity range
+              int32_t disp_min_valid = max(param.disp_min,0);
+              int32_t disp_max_valid = param.disp_max;
+              if (!right_image) disp_max_valid = min(param.disp_max,u-window_size-u_step);
+              else              disp_max_valid = min(param.disp_max,width-u-window_size-u_step);
+              
+              // assume, that we can compute at least 10 disparities for this pixel
+              if (disp_max_valid-disp_min_valid<10)
+               ret1=-1;
+              else
+              {
+                  // for all disparities do
+              for (int16_t d=disp_min_valid; d<=disp_max_valid; d++) {
+          
+                // warp u coordinate
+                if (!right_image) u_warp = u-d;
+                else              u_warp = u+d;
+          
+                // compute I2 block start addresses
+                I2_block_addr = I2_line_addr+16*u_warp;
+                int32_t cost=0;
+                // compute match energy at this disparity
+                
+                //////
+                cost=0;
+                for(int i=0;i<16;i++){
+                  uint8_t b1=*(I1_block_addr+desc_offset_1+i);
+                  uint8_t b2=*(I1_block_addr+desc_offset_2+i);
+                  uint8_t b3=*(I1_block_addr+desc_offset_3+i);
+                  uint8_t b4=*(I1_block_addr+desc_offset_4+i);
+                  uint8_t c1=*(I2_block_addr+desc_offset_1+i);
+                  uint8_t c2=*(I2_block_addr+desc_offset_2+i);
+                  uint8_t c3=*(I2_block_addr+desc_offset_3+i);
+                  uint8_t c4=*(I2_block_addr+desc_offset_4+i);
+                  cost+=abs(b1-c1);
+                  cost+=abs(b2-c2);
+                  cost+=abs(b3-c3);
+                  cost+=abs(b4-c4);
+                }
+                ////
+                sum=cost;
+                // best + second best match
+                if (sum<min_1_E) {
+                  min_2_E = min_1_E;   
+                  min_2_d = min_1_d;
+                  min_1_E = sum;
+                  min_1_d = d;
+                } else if (sum<min_2_E) {
+                  min_2_E = sum;
+                  min_2_d = d;
+                }
             }
-            for(int i=0;i<16;i++){
-              a5[i] = *(I2_block_addr+desc_offset_2+i);
-              cost+=abs(a2[i]-a5[i]);
+        
+            // check if best and second best match are available and if matching ratio is sufficient
+            if (min_1_d>=0 && min_2_d>=0 && (float)min_1_E<param.support_threshold*(float)min_2_E)
+              ret1= min_1_d;
+            else
+              ret1= -1;  
+              
             }
-            for(int i=0;i<16;i++){
-              a5[i] = *(I2_block_addr+desc_offset_3+i);
-              cost+=abs(a3[i]-a5[i]);
+              }
+          
+              
+            
+          
+            
+          } else
+            ret1= -1;
+    
+    
+    
+    
+        }
+        int16_t d=ret1;
+       
+        // for all disparities do
+        
+        
+        
+        if (d>=0) {
+          
+          // find backwards
+          // d2 = computeMatchingDisparity(u-d,v,I1_desc,I2_desc,true);
+         u-=d;
+         {
+    
+          bool right_image=true;
+          const int32_t u_step      = 2;
+          const int32_t v_step      = 2;
+          const int32_t window_size = 3;
+          
+          int32_t desc_offset_1 = -16*u_step-16*width*v_step;
+          int32_t desc_offset_2 = +16*u_step-16*width*v_step;
+          int32_t desc_offset_3 = -16*u_step+16*width*v_step;
+          int32_t desc_offset_4 = +16*u_step+16*width*v_step;
+          
+        
+          // check if we are inside the image region
+          if (u>=window_size+u_step && u<=width-window_size-1-u_step && v>=window_size+v_step && v<=height-window_size-1-v_step) {
+            
+            // compute desc and start addresses
+            int32_t  line_offset = 16*width*v;
+            uint8_t *I1_line_addr,*I2_line_addr;
+            if (!right_image) {
+              I1_line_addr = I1_desc+line_offset;
+              I2_line_addr = I2_desc+line_offset;
+            } else {
+              I1_line_addr = I2_desc+line_offset;
+              I2_line_addr = I1_desc+line_offset;
             }
-            for(int i=0;i<16;i++){
-              a5[i] = *(I2_block_addr+desc_offset_4+i);
-              cost+=abs(a4[i]-a5[i]);
+        
+            // compute I1 block start addresses
+            uint8_t* I1_block_addr = I1_line_addr+16*u;
+            uint8_t* I2_block_addr;
+            
+            // we require at least some texture
+            int32_t sum = 0;
+            for (int32_t i=0; i<16; i++)
+              sum += abs((int32_t)(*(I1_block_addr+i))-128);
+            if (sum<param.support_texture)
+              ret2=-1;
+            else
+            {
+                
+              
+              // declare match energy for each disparity
+              int32_t u_warp;
+              
+              // best match
+              int16_t min_1_E = 32767;
+              int16_t min_1_d = -1;
+              int16_t min_2_E = 32767;
+              int16_t min_2_d = -1;
+          
+              // get valid disparity range
+              int32_t disp_min_valid = max(param.disp_min,0);
+              int32_t disp_max_valid = param.disp_max;
+              if (!right_image) disp_max_valid = min(param.disp_max,u-window_size-u_step);
+              else              disp_max_valid = min(param.disp_max,width-u-window_size-u_step);
+              
+              // assume, that we can compute at least 10 disparities for this pixel
+              if (disp_max_valid-disp_min_valid<10)
+              ret2=-1;
+              else
+              {
+                  // for all disparities do
+              for (int16_t d=disp_min_valid; d<=disp_max_valid; d++) {
+          
+                // warp u coordinate
+                if (!right_image) u_warp = u-d;
+                else              u_warp = u+d;
+                int32_t cost=0;
+    
+                // compute I2 block start addresses
+                I2_block_addr = I2_line_addr+16*u_warp;
+          
+                // compute match energy at this disparity
+                
+                //////
+                cost=0;
+                for(int i=0;i<16;i++){
+                  uint8_t b1=*(I1_block_addr+desc_offset_1+i);
+                  uint8_t b2=*(I1_block_addr+desc_offset_2+i);
+                  uint8_t b3=*(I1_block_addr+desc_offset_3+i);
+                  uint8_t b4=*(I1_block_addr+desc_offset_4+i);
+                  uint8_t c1=*(I2_block_addr+desc_offset_1+i);
+                  uint8_t c2=*(I2_block_addr+desc_offset_2+i);
+                  uint8_t c3=*(I2_block_addr+desc_offset_3+i);
+                  uint8_t c4=*(I2_block_addr+desc_offset_4+i);
+                  cost+=abs(b1-c1);
+                  cost+=abs(b2-c2);
+                  cost+=abs(b3-c3);
+                  cost+=abs(b4-c4);
+                }
+                ////
+                sum=cost;
+                // best + second best match
+                if (sum<min_1_E) {
+                  min_2_E = min_1_E;   
+                  min_2_d = min_1_d;
+                  min_1_E = sum;
+                  min_1_d = d;
+                } else if (sum<min_2_E) {
+                  min_2_E = sum;
+                  min_2_d = d;
+                }
             }
-            sum=cost;
-            // best + second best match
-            if (sum<min_1_E) {
-              min_2_E = min_1_E;   
-              min_2_d = min_1_d;
-              min_1_E = sum;
-              min_1_d = d;
-            } else if (sum<min_2_E) {
-              min_2_E = sum;
-              min_2_d = d;
+        
+            // check if best and second best match are available and if matching ratio is sufficient
+            if (min_1_d>=0 && min_2_d>=0 && (float)min_1_E<param.support_threshold*(float)min_2_E)
+            ret2= min_1_d;
+            else
+            ret2= -1;  
+              
             }
+              }
+          
+              
+            
+          
+            
+          } else
+          ret2= -1;
+    
+    
+    
+    
         }
     
-        // check if best and second best match are available and if matching ratio is sufficient
-        if (min_1_d>=0 && min_2_d>=0 && (float)min_1_E<param.support_threshold*(float)min_2_E)
-          ret1= min_1_d;
-        else
-          ret1= -1;  
-          
+    
+        int16_t d2=ret2;
+          u+=d;
+          if (d2>=0 && abs(d-d2)<=param.lr_threshold)
+            *(D_can+v_can*D_can_width+u_can) = d;
         }
-          }
-      
-          
-        
-      
-        
-      } else
-        ret1= -1;
-
-
-
-
-    }
-    int16_t d=ret1;
-    // printf("%d\n",d);
-    // for all disparities do
+      }
     
-    
-    
-    if (d>=0) {
-      
-      // find backwards
-      // d2 = computeMatchingDisparity(u-d,v,I1_desc,I2_desc,true);
-     u-=d;
-     {
-
-      bool right_image=true;
-      const int32_t u_step      = 2;
-      const int32_t v_step      = 2;
-      const int32_t window_size = 3;
-      
-      int32_t desc_offset_1 = -16*u_step-16*width*v_step;
-      int32_t desc_offset_2 = +16*u_step-16*width*v_step;
-      int32_t desc_offset_3 = -16*u_step+16*width*v_step;
-      int32_t desc_offset_4 = +16*u_step+16*width*v_step;
-      
-    
-      // check if we are inside the image region
-      if (u>=window_size+u_step && u<=width-window_size-1-u_step && v>=window_size+v_step && v<=height-window_size-1-v_step) {
-        
-        // compute desc and start addresses
-        int32_t  line_offset = 16*width*v;
-        uint8_t *I1_line_addr,*I2_line_addr;
-        if (!right_image) {
-          I1_line_addr = I1_desc+line_offset;
-          I2_line_addr = I2_desc+line_offset;
-        } else {
-          I1_line_addr = I2_desc+line_offset;
-          I2_line_addr = I1_desc+line_offset;
-        }
-    
-        // compute I1 block start addresses
-        uint8_t* I1_block_addr = I1_line_addr+16*u;
-        uint8_t* I2_block_addr;
-        
-        // we require at least some texture
-        int32_t sum = 0;
-        for (int32_t i=0; i<16; i++)
-          sum += abs((int32_t)(*(I1_block_addr+i))-128);
-        if (sum<param.support_texture)
-          ret2=-1;
-        else
-        {
-            // load first blocks to xmm registers
-            for(int i=0;i<16;i++){
-              a1[i] = *(I1_block_addr+desc_offset_1+i);
-              a2[i] = *(I1_block_addr+desc_offset_2+i);
-              a3[i] = *(I1_block_addr+desc_offset_3+i);
-              a4[i] = *(I1_block_addr+desc_offset_4+i);
-              // std::cout<<a1[i]<<"\n";
-            }
-          
-          // declare match energy for each disparity
-          int32_t u_warp;
-          
-          // best match
-          int16_t min_1_E = 32767;
-          int16_t min_1_d = -1;
-          int16_t min_2_E = 32767;
-          int16_t min_2_d = -1;
-      
-          // get valid disparity range
-          int32_t disp_min_valid = max(param.disp_min,0);
-          int32_t disp_max_valid = param.disp_max;
-          if (!right_image) disp_max_valid = min(param.disp_max,u-window_size-u_step);
-          else              disp_max_valid = min(param.disp_max,width-u-window_size-u_step);
-          
-          // assume, that we can compute at least 10 disparities for this pixel
-          if (disp_max_valid-disp_min_valid<10)
-          ret2=-1;
-          else
-          {
-              // for all disparities do
-          for (int16_t d=disp_min_valid; d<=disp_max_valid; d++) {
-      
-            // warp u coordinate
-            if (!right_image) u_warp = u-d;
-            else              u_warp = u+d;
-            int32_t cost=0;
-
-            // compute I2 block start addresses
-            I2_block_addr = I2_line_addr+16*u_warp;
-      
-            // compute match energy at this disparity
-            for(int i=0;i<16;i++){
-              a5[i] = *(I2_block_addr+desc_offset_1+i);
-              cost+=abs(a1[i]-a5[i]);
-            }
-            for(int i=0;i<16;i++){
-              a5[i] = *(I2_block_addr+desc_offset_2+i);
-              cost+=abs(a2[i]-a5[i]);
-            }
-            for(int i=0;i<16;i++){
-              a5[i] = *(I2_block_addr+desc_offset_3+i);
-              cost+=abs(a3[i]-a5[i]);
-            }
-            for(int i=0;i<16;i++){
-              a5[i] = *(I2_block_addr+desc_offset_4+i);
-              cost+=abs(a4[i]-a5[i]);
-            }
-            sum=cost;
-            // best + second best match
-            if (sum<min_1_E) {
-              min_2_E = min_1_E;   
-              min_2_d = min_1_d;
-              min_1_E = sum;
-              min_1_d = d;
-            } else if (sum<min_2_E) {
-              min_2_E = sum;
-              min_2_d = d;
-            }
-        }
-    
-        // check if best and second best match are available and if matching ratio is sufficient
-        if (min_1_d>=0 && min_2_d>=0 && (float)min_1_E<param.support_threshold*(float)min_2_E)
-        ret2= min_1_d;
-        else
-        ret2= -1;  
-          
-        }
-          }
-      
-          
-        
-      
-        
-      } else
-      ret2= -1;
-
-
-
-
-    }
-
-
-    int16_t d2=ret2;
-      u+=d;
-      if (d2>=0 && abs(d-d2)<=param.lr_threshold)
-        *(D_can+v_can*D_can_width+u_can) = d;
-    }
 }
 
 vector<Elas::support_pt> Elas::computeSupportMatches (uint8_t* I1_desc,uint8_t* I2_desc) {
-  cudaError_t err = cudaSuccess;
+  cudaError_t err ;
   // be sure that at half resolution we only need data
   // from every second line!
   int32_t D_candidate_stepsize = param.candidate_stepsize;
@@ -720,56 +705,62 @@ vector<Elas::support_pt> Elas::computeSupportMatches (uint8_t* I1_desc,uint8_t* 
   int32_t D_can_height = 0;
   for (int32_t u=0; u<width;  u+=D_candidate_stepsize) D_can_width++;
   for (int32_t v=0; v<height; v+=D_candidate_stepsize) D_can_height++;
-  int16_t* D_can;
-  err=cudaMalloc(&D_can,D_can_width*D_can_height*sizeof(int16_t));
-  if(err!=cudaSuccess)
-    cout<<"allocated D_can\n";
-  else
-    cout<<"Couldnt't allocate D_can \n";
-  // loop variables
-  int32_t u,v;
-  int16_t d,d2;
-   
-  dim3 dimBlock(2);
-  dim3 dimGrid(2,2);
-  uint8_t *a1,*a2,*a3,*a4,*a5;
-  size_t size = 16*sizeof(uint8_t);
+  int16_t* D_can = (int16_t*)calloc(D_can_width*D_can_height,sizeof(int16_t));
 
-  err=cudaMalloc(&a1, size);
-  if(err!=cudaSuccess)
 
-  cout<<"allocated arrays a\n";
-else
-cout<<"error";
-  err=cudaMalloc(&a2, size);
-  err=cudaMalloc(&a3, size);
-  err=cudaMalloc(&a4, size);
-  err=cudaMalloc(&a5, size);
-  if(err!=cudaSuccess)
+  int16_t* d_D_can;
 
-  cout<<"allocated arrays a\n";
-else
-cout<<"error";
+  err=cudaMalloc(&d_D_can,D_can_width*D_can_height*sizeof(int16_t));
+  if(err!=cudaSuccess) cout<<"Couldnt't allocate D_can \n";
+  
+  dim3 dimBlock(1);
+  dim3 dimGrid(BLOCK_X,BLOCK_X);
+  size_t size;
+  // uint8_t* a1,*a2,*a3,*a4,*a5;
+  // size=16*sizeof(uint8_t);
+  // err=cudaMalloc(&a1, size);
+  // if(err!=cudaSuccess) cout<<"error";
+  // err=cudaMalloc(&a2, size);
+  // if(err!=cudaSuccess) cout<<"error";
+  // err=cudaMalloc(&a3, size);
+  // if(err!=cudaSuccess) cout<<"error";
+  // err=cudaMalloc(&a4, size);
+  // if(err!=cudaSuccess) cout<<"error";
+  // err=cudaMalloc(&a5, size);
+  // if(err!=cudaSuccess) cout<<"error";
+
   uint8_t* d_I1_desc;
   uint8_t* d_I2_desc;
   size=16*width*height*sizeof(uint8_t);
   err=cudaMalloc(&d_I1_desc,size);
+  if(err!=cudaSuccess) cout<<"error";
   err=cudaMalloc(&d_I2_desc,size);
+  if(err!=cudaSuccess) cout<<"error";
   err=cudaMemcpy(d_I1_desc,I1_desc,size,cudaMemcpyHostToDevice);
   err=cudaMemcpy(d_I2_desc,I2_desc,size,cudaMemcpyHostToDevice);
-  if (err != cudaSuccess){
-    std::cout<<"error\n";
-  }
-  cudaDeviceSynchronize();
-cout<<"allocated and copied desc\n";
-  computeSupportMatchesKernel<<<dimBlock,dimGrid>>>(D_can,param,d_I1_desc,d_I2_desc,D_can_width,D_can_height,width,height,a1,a2,a3,a4,a5);
+  if(err!=cudaSuccess) cout<<"error";
+
+  computeSupportMatchesKernel<<<dimBlock,dimGrid>>>(d_D_can,param,d_I1_desc,d_I2_desc,D_can_width,D_can_height,width,height);
   err = cudaGetLastError();
+  if(err!=cudaSuccess) cout<<"error";
+  cudaMemcpy(D_can,d_D_can,D_can_width*D_can_height*sizeof(int16_t),cudaMemcpyDeviceToHost);
+  // cudaFree(a1);
+  // cudaFree(a2);
+  // cudaFree(a3);
+  // cudaFree(a4);
+  // cudaFree(a5);
+  cudaFree(d_D_can);
+  cudaFree(d_I1_desc);
+  cudaFree(d_I2_desc);
+  cudaDeviceSynchronize();
 
-    if (err != cudaSuccess){
-      std::cout<<"error\n";
 
-    }
-  //diff between D-can kernal and device  
+  ofstream file;
+  file.open ("disparity_parallel.txt");
+  for(int i=0;i<D_can_height;i++)
+  for(int j=0;j<D_can_width;j++)
+  file<<D_can[i*D_can_width+j]<<"\n";
+  file.close();
   // remove inconsistent support points
   removeInconsistentSupportPoints(D_can,D_can_width,D_can_height);
   
