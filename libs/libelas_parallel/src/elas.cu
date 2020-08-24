@@ -497,7 +497,6 @@ __global__ void computeSupportMatchesKernel(int16_t* D_can,parameters param,uint
                 // compute match energy at this disparity
                 
                 //////
-                cost=0;
                 for(int i=0;i<16;i++){
                   uint8_t b1=*(I1_block_addr+desc_offset_1+i);
                   uint8_t b2=*(I1_block_addr+desc_offset_2+i);
@@ -632,7 +631,6 @@ __global__ void computeSupportMatchesKernel(int16_t* D_can,parameters param,uint
                 // compute match energy at this disparity
                 
                 //////
-                cost=0;
                 for(int i=0;i<16;i++){
                   uint8_t b1=*(I1_block_addr+desc_offset_1+i);
                   uint8_t b2=*(I1_block_addr+desc_offset_2+i);
@@ -716,18 +714,6 @@ vector<Elas::support_pt> Elas::computeSupportMatches (uint8_t* I1_desc,uint8_t* 
   dim3 dimBlock(1);
   dim3 dimGrid(BLOCK_X,BLOCK_X);
   size_t size;
-  // uint8_t* a1,*a2,*a3,*a4,*a5;
-  // size=16*sizeof(uint8_t);
-  // err=cudaMalloc(&a1, size);
-  // if(err!=cudaSuccess) cout<<"error";
-  // err=cudaMalloc(&a2, size);
-  // if(err!=cudaSuccess) cout<<"error";
-  // err=cudaMalloc(&a3, size);
-  // if(err!=cudaSuccess) cout<<"error";
-  // err=cudaMalloc(&a4, size);
-  // if(err!=cudaSuccess) cout<<"error";
-  // err=cudaMalloc(&a5, size);
-  // if(err!=cudaSuccess) cout<<"error";
 
   uint8_t* d_I1_desc;
   uint8_t* d_I2_desc;
@@ -744,11 +730,7 @@ vector<Elas::support_pt> Elas::computeSupportMatches (uint8_t* I1_desc,uint8_t* 
   err = cudaGetLastError();
   if(err!=cudaSuccess) cout<<"error";
   cudaMemcpy(D_can,d_D_can,D_can_width*D_can_height*sizeof(int16_t),cudaMemcpyDeviceToHost);
-  // cudaFree(a1);
-  // cudaFree(a2);
-  // cudaFree(a3);
-  // cudaFree(a4);
-  // cudaFree(a5);
+  
   cudaFree(d_D_can);
   cudaFree(d_I1_desc);
   cudaFree(d_I2_desc);
