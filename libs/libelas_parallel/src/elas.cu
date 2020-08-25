@@ -30,15 +30,22 @@ Street, Fifth Floor, Boston, MA 02110-1301, USA
 
 using namespace std;
 #define BLOCK_X 32
-#define numBlocks 6
+// #define numBlocks 32
 void Elas::hello(int x){
     std::cout<<x<<"\n";
   }
-  __device__ uint32_t getAddressOffsetImage (const int32_t& u,const int32_t& v,const int32_t& width) {
+  __device__ uint32_t getAddressOffsetImage_device (const int32_t& u,const int32_t& v,const int32_t& width) {
     return v*width+u;
   }
 
-  __device__ uint32_t getAddressOffsetGrid (const int32_t& x,const int32_t& y,const int32_t& d,const int32_t& width,const int32_t& disp_num) {
+  __device__ uint32_t getAddressOffsetGrid_device (const int32_t& x,const int32_t& y,const int32_t& d,const int32_t& width,const int32_t& disp_num) {
+    return (y*width+x)*disp_num+d;
+  }
+  inline uint32_t getAddressOffsetImage (const int32_t& u,const int32_t& v,const int32_t& width) {
+    return v*width+u;
+  }
+
+  inline uint32_t getAddressOffsetGrid (const int32_t& x,const int32_t& y,const int32_t& d,const int32_t& width,const int32_t& disp_num) {
     return (y*width+x)*disp_num+d;
   }
  void Elas::process (uint8_t* I1_,uint8_t* I2_,float* D1,float* D2,const int32_t* dims){
@@ -112,7 +119,7 @@ void Elas::hello(int x){
   timer.start("Matching");
 #endif
   computeDisparity(p_support,tri_1,disparity_grid_1,grid_dims,desc1.I_desc,desc2.I_desc,0,D1);
-  computeDisparity(p_support,tri_2,disparity_grid_2,grid_dims,desc1.I_desc,desc2.I_desc,1,D2);
+  // computeDisparity(p_support,tri_2,disparity_grid_2,grid_dims,desc1.I_desc,desc2.I_desc,1,D2);
 
 #ifdef PROFILE
   timer.start("L/R Consistency Check");
@@ -420,7 +427,7 @@ __global__ void computeSupportMatchesKernel(int16_t* D_can,parameters param,uint
     
     int32_t u,v;
     int32_t u_can,v_can;
-    int numThreads=numBlocks*BLOCK_X*BLOCK_X;
+    int numThreads=blockDim.x*BLOCK_X*BLOCK_X;
     int bound=(D_can_width-1)*(D_can_height-1);
     for(int idx=blockIdx.x * BLOCK_X*BLOCK_X + threadIdx.x*BLOCK_X+threadIdx.y;idx<bound;idx+=numThreads){
       v_can=idx/(D_can_width-1)+1;
@@ -725,7 +732,7 @@ vector<support_pt> Elas::computeSupportMatches (uint8_t* I1_desc,uint8_t* I2_des
   err=cudaMalloc(&d_D_can,D_can_width*D_can_height*sizeof(int16_t));
   if(err!=cudaSuccess) cout<<"Couldnt't allocate D_can \n";
   
-  dim3 dimBlock(numBlocks);
+  dim3 dimBlock(32);
   dim3 dimGrid(BLOCK_X,BLOCK_X);
   size_t size;
 
@@ -1003,27 +1010,23 @@ void Elas::createGrid(vector<support_pt> p_support,int32_t* disparity_grid,int32
   free(temp2);
 }
 
-__device__ void updatePosteriorMinimum(__m128i* I2_block_addr,const int32_t &d,const int32_t &w,
-                                         const __m128i &xmm1,__m128i &xmm2,int32_t &val,int32_t &min_val,int32_t &min_d) {
-  xmm2 = _mm_load_si128(I2_block_addr);
-  xmm2 = _mm_sad_epu8(xmm1,xmm2);
-  val  = _mm_extract_epi16(xmm2,0)+_mm_extract_epi16(xmm2,4)+w;
-  if (val<min_val) {
-    min_val = val;
+__device__ void updatePosteriorMinimum(uint8_t* I2_block_addr,const int32_t &d,const int32_t &w,
+  uint8_t* I1_block_addr,int32_t &min_val,int32_t &min_d) {
+ int32_t cost=w;
+  
+  for(int i=0;i<16;i++){
+    uint8_t xmm2=*(I2_block_addr+i);
+    uint8_t xmm1=*(I1_block_addr+i);
+    cost+=abs(xmm2-xmm1);
+  }
+  
+if (cost<min_val) {
+    min_val = cost;
     min_d   = d;
   }
 }
 
-__device__ void updatePosteriorMinimum(__m128i* I2_block_addr,const int32_t &d,
-                                         const __m128i &xmm1,__m128i &xmm2,int32_t &val,int32_t &min_val,int32_t &min_d) {
-  xmm2 = _mm_load_si128(I2_block_addr);
-  xmm2 = _mm_sad_epu8(xmm1,xmm2);
-  val  = _mm_extract_epi16(xmm2,0)+_mm_extract_epi16(xmm2,4);
-  if (val<min_val) {
-    min_val = val;
-    min_d   = d;
-  }
-}
+
 
  __device__ void findMatch(int32_t &u,int32_t &v,float &plane_a,float &plane_b,float &plane_c,
                             int32_t* disparity_grid,int32_t *grid_dims,uint8_t* I1_desc,uint8_t* I2_desc,
@@ -1035,9 +1038,9 @@ __device__ void updatePosteriorMinimum(__m128i* I2_block_addr,const int32_t &d,
 
   // address of disparity we want to compute
   uint32_t d_addr;
-  if (param.subsampling) d_addr = getAddressOffsetImage(u/2,v/2,width/2);
-  else                   d_addr = getAddressOffsetImage(u,v,width);
-  
+  if (param.subsampling) d_addr = getAddressOffsetImage_device(u/2,v/2,width/2);
+  else                   d_addr = getAddressOffsetImage_device(u,v,width);
+
   // check if u is ok
   if (u<window_size || u>=width-window_size)
     return;
@@ -1055,8 +1058,7 @@ __device__ void updatePosteriorMinimum(__m128i* I2_block_addr,const int32_t &d,
 
   // compute I1 block start address
   uint8_t* I1_block_addr = I1_line_addr+16*u;
-  
-  // does this patch have enough texture?
+    // does this patch have enough texture?
   int32_t sum = 0;
   for (int32_t i=0; i<16; i++)
     sum += abs((int32_t)(*(I1_block_addr+i))-128);
@@ -1071,16 +1073,15 @@ __device__ void updatePosteriorMinimum(__m128i* I2_block_addr,const int32_t &d,
   // get grid pointer
   int32_t  grid_x    = (int32_t)floor((float)u/(float)param.grid_size);
   int32_t  grid_y    = (int32_t)floor((float)v/(float)param.grid_size);
-  uint32_t grid_addr = getAddressOffsetGrid(grid_x,grid_y,0,grid_dims[1],grid_dims[0]);  
+  uint32_t grid_addr = getAddressOffsetGrid_device(grid_x,grid_y,0,grid_dims[1],grid_dims[0]);  
   int32_t  num_grid  = *(disparity_grid+grid_addr);
   int32_t* d_grid    = disparity_grid+grid_addr+1;
   
   // loop variables
-  int32_t d_curr, u_warp, val;
+  int32_t d_curr, u_warp;
   int32_t min_val = 10000;
+
   int32_t min_d   = -1;
-  __m128i xmm1    = _mm_load_si128((__m128i*)I1_block_addr);
-  __m128i xmm2;
 
   // left image
   if (!right_image) { 
@@ -1090,14 +1091,14 @@ __device__ void updatePosteriorMinimum(__m128i* I2_block_addr,const int32_t &d,
         u_warp = u-d_curr;
         if (u_warp<window_size || u_warp>=width-window_size)
           continue;
-        updatePosteriorMinimum((__m128i*)(I2_line_addr+16*u_warp),d_curr,xmm1,xmm2,val,min_val,min_d);
+        updatePosteriorMinimum((uint8_t*)(I2_line_addr+16*u_warp),d_curr,0,I1_block_addr,min_val,min_d);
       }
     }
     for (d_curr=d_plane_min; d_curr<=d_plane_max; d_curr++) {
       u_warp = u-d_curr;
       if (u_warp<window_size || u_warp>=width-window_size)
         continue;
-      updatePosteriorMinimum((__m128i*)(I2_line_addr+16*u_warp),d_curr,valid?*(P+abs(d_curr-d_plane)):0,xmm1,xmm2,val,min_val,min_d);
+      updatePosteriorMinimum((uint8_t*)(I2_line_addr+16*u_warp),d_curr,valid?*(P+abs(d_curr-d_plane)):0,I1_block_addr,min_val,min_d);
     }
     
   // right image
@@ -1108,14 +1109,14 @@ __device__ void updatePosteriorMinimum(__m128i* I2_block_addr,const int32_t &d,
         u_warp = u+d_curr;
         if (u_warp<window_size || u_warp>=width-window_size)
           continue;
-        updatePosteriorMinimum((__m128i*)(I2_line_addr+16*u_warp),d_curr,xmm1,xmm2,val,min_val,min_d);
+        updatePosteriorMinimum((uint8_t*)(I2_line_addr+16*u_warp),d_curr,0,I1_block_addr,min_val,min_d);
       }
     }
     for (d_curr=d_plane_min; d_curr<=d_plane_max; d_curr++) {
       u_warp = u+d_curr;
       if (u_warp<window_size || u_warp>=width-window_size)
         continue;
-      updatePosteriorMinimum((__m128i*)(I2_line_addr+16*u_warp),d_curr,valid?*(P+abs(d_curr-d_plane)):0,xmm1,xmm2,val,min_val,min_d);
+      updatePosteriorMinimum((uint8_t*)(I2_line_addr+16*u_warp),d_curr,valid?*(P+abs(d_curr-d_plane)):0,I1_block_addr,min_val,min_d);
     }
   }
 
@@ -1125,8 +1126,10 @@ __device__ void updatePosteriorMinimum(__m128i* I2_block_addr,const int32_t &d,
 }
 
 __global__ void computeDisparityKernel(bool right_image,bool subsampling,support_pt * p_support,triangle * tri,int32_t* disparity_grid,  int32_t *grid_dims,
-  uint8_t* I1_desc,uint8_t* I2_desc,int32_t* P,int32_t plane_radius,float* D,int32_t width,int32_t height,parameters param){
-  uint32_t i =threadIdx.x;
+  uint8_t* I1_desc,uint8_t* I2_desc,int32_t* P,int32_t plane_radius,float* D,int32_t width,int32_t height,parameters param,int tri_size){
+  uint32_t i =blockIdx.x*blockDim.x+threadIdx.x;
+  if(i>0) ///////////take care
+    return;
   int32_t c1, c2, c3;
   float plane_a,plane_b,plane_c,plane_d;
   // get plane parameters
@@ -1175,7 +1178,7 @@ __global__ void computeDisparityKernel(bool right_image,bool subsampling,support
   float A_u = tri_u[0]; float A_v = tri_v[0];
   float B_u = tri_u[1]; float B_v = tri_v[1];
   float C_u = tri_u[2]; float C_v = tri_v[2];
-  
+
   // compute straight lines connecting triangle corners
   float AB_a = 0; float AC_a = 0; float BC_a = 0;
   if ((int32_t)(A_u)!=(int32_t)(B_u)) AB_a = (A_v-B_v)/(A_u-B_u);
@@ -1196,13 +1199,14 @@ __global__ void computeDisparityKernel(bool right_image,bool subsampling,support
         int32_t v_1 = (uint32_t)(AC_a*(float)u+AC_b);
         int32_t v_2 = (uint32_t)(AB_a*(float)u+AB_b);
         for (int32_t v=min(v_1,v_2); v<max(v_1,v_2); v++)
-          if (!subsampling || v%2==0) {
-            findMatch(u,v,plane_a,plane_b,plane_c,disparity_grid,grid_dims,
-                      I1_desc,I2_desc,P,plane_radius,valid,right_image,D,width,height,param);
-          }
+                 if (!subsampling || v%2==0) {
+                   findMatch(u,v,plane_a,plane_b,plane_c,disparity_grid,grid_dims,
+                             I1_desc,I2_desc,P,plane_radius,valid,right_image,D,width,height,param);
+                 }
+        }
       }
     }
-  }
+  
 
   // second part (triangle corner B->C)
   if ((int32_t)(B_u)!=(int32_t)(C_u)) {
@@ -1245,51 +1249,58 @@ void Elas::computeDisparity(vector<support_pt> p_support,vector<triangle> tri,in
   for (int32_t delta_d=0; delta_d<disp_num; delta_d++)
     P[delta_d] = (int32_t)((-log(param.gamma+exp(-delta_d*delta_d/two_sigma_squared))+log(param.gamma))/param.beta);
   int32_t plane_radius = (int32_t)max((float)ceil(param.sigma*param.sradius),(float)2.0);
-
+  
   size_t size;
   size=p_support.size()*sizeof(p_support);
   support_pt* d_p_support,*p_support_tmp;
-  p_support_tmp=(support_pt *)malloc(size);
-  for(int i=0;i<p_support.size();i++)
-    p_support_tmp[i]=p_support[i];
+  p_support_tmp = &p_support[0];
   cudaMalloc(&d_p_support,size);
   cudaMemcpy(d_p_support,p_support_tmp,size,cudaMemcpyHostToDevice);
+  
   size=tri.size()*sizeof(triangle);
   triangle* d_tri,*tri_tmp;
-  tri_tmp=(triangle *)malloc(size);
-  for(int i=0;i<tri.size();i++)
-    tri_tmp[i]=tri[i];
+  tri_tmp = &tri[0];
   cudaMalloc(&d_tri,size);
   cudaMemcpy(d_tri,tri_tmp,size,cudaMemcpyHostToDevice);
+  
   int32_t grid_width   = (int32_t)ceil((float)width/(float)param.grid_size);
   int32_t grid_height  = (int32_t)ceil((float)height/(float)param.grid_size);
   size=(param.disp_max+2)*grid_height*grid_width*sizeof(int32_t);
   int32_t* d_disparity_grid;
   cudaMalloc(&d_disparity_grid,size);
   cudaMemcpy(d_disparity_grid,disparity_grid,size,cudaMemcpyHostToDevice);
+  
   size=3*sizeof(int32_t);
   int32_t *d_grid_dims;
   cudaMalloc(&d_grid_dims,size);
   cudaMemcpy(d_grid_dims,grid_dims,size,cudaMemcpyHostToDevice);
+  
   size=16*width*height*sizeof(uint8_t);
   uint8_t *d_I1_desc,* d_I2_desc;
   cudaMalloc(&d_I1_desc,size);
   cudaMalloc(&d_I2_desc,size);
   cudaMemcpy(d_I1_desc,I1_desc,size,cudaMemcpyHostToDevice);
   cudaMemcpy(d_I2_desc,I2_desc,size,cudaMemcpyHostToDevice);
+  
   size=disp_num*sizeof(int32_t);
   int32_t* d_P;
   cudaMalloc(&d_P,size);
   cudaMemcpy(d_P,P,size,cudaMemcpyHostToDevice);
+  
   size=width*height*sizeof(float);
   float* d_D;
   cudaMalloc(&d_D,size);
   cudaMemcpy(d_D,D,size,cudaMemcpyHostToDevice);
+
   // for all triangles do
-  computeDisparityKernel<<<1,1024>>>(right_image,param.subsampling,d_p_support,d_tri,d_disparity_grid,d_grid_dims,d_I1_desc,d_I2_desc,d_P,plane_radius,d_D,width,height,param);
+  int numBlocks=(tri.size()+31)/32;
+  computeDisparityKernel<<<numBlocks,32>>>(right_image,param.subsampling,d_p_support,d_tri,d_disparity_grid,d_grid_dims,d_I1_desc,d_I2_desc,d_P,plane_radius,d_D,width,height,param,tri.size());
+  cudaError_t err = cudaGetLastError();
+  if(err!=cudaSuccess) cout<<"error";
+
   size=width*height*sizeof(float);
   cudaMemcpy(D,d_D,size,cudaMemcpyDeviceToHost);
-
+  
   cudaFree(d_p_support);
   cudaFree(d_tri);
   cudaFree(d_disparity_grid);
@@ -1299,9 +1310,22 @@ void Elas::computeDisparity(vector<support_pt> p_support,vector<triangle> tri,in
   cudaFree(d_P);
   cudaFree(d_D);
   cudaDeviceSynchronize();
-  free(p_support_tmp);
-  free(tri_tmp);
+
   delete[] P;
+  ofstream file;
+  file.open ("computedisparity_parallel.txt");
+  for(int i=0;i<height;i++)
+  for(int j=0;j<width;j++)
+  file<<D[i*width+j]<<"\n";
+  // for(int i=0;i<tri.size();i++){
+  //   triangle x= tri_tmp[i];
+  //   file<<x.c1<<" "<<x.c1<<" "<<x.c1<<"\n";
+  //   file<<x.t1a<<" "<<x.t1b<<" "<<x.t1c<<"\n";
+  //   file<<x.t2a<<" "<<x.t2b<<" "<<x.t2c<<"\n";
+
+  // }
+  file.close();
+  
 }
 
 void Elas::leftRightConsistencyCheck(float* D1,float* D2) {
