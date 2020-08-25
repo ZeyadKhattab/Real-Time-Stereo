@@ -119,7 +119,7 @@ void Elas::hello(int x){
   timer.start("Matching");
 #endif
   computeDisparity(p_support,tri_1,disparity_grid_1,grid_dims,desc1.I_desc,desc2.I_desc,0,D1);
-  // computeDisparity(p_support,tri_2,disparity_grid_2,grid_dims,desc1.I_desc,desc2.I_desc,1,D2);
+  computeDisparity(p_support,tri_2,disparity_grid_2,grid_dims,desc1.I_desc,desc2.I_desc,1,D2);
 
 #ifdef PROFILE
   timer.start("L/R Consistency Check");
@@ -1128,7 +1128,7 @@ if (cost<min_val) {
 __global__ void computeDisparityKernel(bool right_image,bool subsampling,support_pt * p_support,triangle * tri,int32_t* disparity_grid,  int32_t *grid_dims,
   uint8_t* I1_desc,uint8_t* I2_desc,int32_t* P,int32_t plane_radius,float* D,int32_t width,int32_t height,parameters param,int tri_size){
   uint32_t i =blockIdx.x*blockDim.x+threadIdx.x;
-  if(i>0) ///////////take care
+  if(i>=tri_size) 
     return;
   int32_t c1, c2, c3;
   float plane_a,plane_b,plane_c,plane_d;
@@ -1317,13 +1317,7 @@ void Elas::computeDisparity(vector<support_pt> p_support,vector<triangle> tri,in
   for(int i=0;i<height;i++)
   for(int j=0;j<width;j++)
   file<<D[i*width+j]<<"\n";
-  // for(int i=0;i<tri.size();i++){
-  //   triangle x= tri_tmp[i];
-  //   file<<x.c1<<" "<<x.c1<<" "<<x.c1<<"\n";
-  //   file<<x.t1a<<" "<<x.t1b<<" "<<x.t1c<<"\n";
-  //   file<<x.t2a<<" "<<x.t2b<<" "<<x.t2c<<"\n";
 
-  // }
   file.close();
   
 }

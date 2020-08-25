@@ -26,6 +26,7 @@ Street, Fifth Floor, Boston, MA 02110-1301, USA
 #include "descriptor.h"
 #include "triangle.h"
 #include "matrix.h"
+#include <fstream>
 
 using namespace std;
 
@@ -906,7 +907,13 @@ void Elas::computeDisparity(vector<support_pt> p_support,vector<triangle> tri,in
     }
     
   }
+  ofstream file;
+  file.open ("computedisparity_parallel.txt");
+  for(int i=0;i<height;i++)
+  for(int j=0;j<width;j++)
+  file<<D[i*width+j]<<"\n";
 
+  file.close();
   delete[] P;
 }
 
