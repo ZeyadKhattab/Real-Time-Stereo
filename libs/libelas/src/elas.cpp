@@ -1336,7 +1336,7 @@ void Elas::adaptiveMeanTest (float* D) {
   float *aval=(float*)malloc(4*sizeof(float));
   float *afactor2=(float*)malloc(4*sizeof(float));
 
-  float *val     = (float *)_mm_malloc(8*sizeof(float),16);
+  float *val     = (float *)malloc(8*sizeof(float));
   // float *weight  = (float*)_mm_malloc(4*sizeof(float),16);
   // float *factor  = (float*)_mm_malloc(4*sizeof(float),16);
   float *aweight1=(float*)malloc(4*sizeof(float));
@@ -1562,7 +1562,7 @@ void Elas::adaptiveMeanTest (float* D) {
   }
   
   // free memory
-  _mm_free(val);
+  free(val);
   // _mm_free(weight);
   // _mm_free(factor);
   free(aweight1);
