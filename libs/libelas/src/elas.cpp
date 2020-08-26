@@ -130,9 +130,9 @@ void Elas::process (uint8_t* I1_,uint8_t* I2_,float* D1,float* D2,const int32_t*
 #ifdef PROFILE
     timer.start("Adaptive Mean");
 #endif
-    adaptiveMean(D1);
-    if (!param.postprocess_only_left)
-      adaptiveMean(D2);
+    adaptiveMeanTest(D1);
+    // if (!param.postprocess_only_left)
+    //   adaptiveMean(D2);
   }
 
   if (param.filter_median) {
@@ -1319,17 +1319,17 @@ void Elas::adaptiveMeanTest (float* D) {
     }
   }
   
-  __m128 xconst0 = _mm_set1_ps(0);
-  __m128 xconst4 = _mm_set1_ps(4);
+  __m128 xconst0 = _mm_set1_ps(0); //4 32 bit numbers =0 
+  __m128 xconst4 = _mm_set1_ps(4); //4 32 bit numbers =4 
   __m128 xval,xweight1,xweight2,xfactor1,xfactor2;
   
   float *val     = (float *)_mm_malloc(8*sizeof(float),16);
   float *weight  = (float*)_mm_malloc(4*sizeof(float),16);
   float *factor  = (float*)_mm_malloc(4*sizeof(float),16);
-  
+  float *tmp=(float*)malloc(4*sizeof(float));
   // set absolute mask
-  __m128 xabsmask = _mm_set1_ps(0x7FFFFFFF);
-  
+  __m128 xabsmask = _mm_set1_ps(0x7FFFFFFF); // 2^31 - 1 
+
   // when doing subsampling: 4 pixel bilateral filter width
   if (param.subsampling) {
   
@@ -1419,9 +1419,15 @@ void Elas::adaptiveMeanTest (float* D) {
         float val_curr = *(D_copy+v*D_width+(u-3));
         val[u%8] = *(D_copy+v*D_width+u);
 
-        xval     = _mm_load_ps(val);      
-        xweight1 = _mm_sub_ps(xval,_mm_set1_ps(val_curr));
+        xval     = _mm_load_ps(val);  // val[0...4[
+        xweight1 = _mm_sub_ps(xval,_mm_set1_ps(val_curr)); // 4 *val_curr
+        for(int i=0;i<4;i++){
+          tmp[i]=val[i]-val_curr;
+        }
         xweight1 = _mm_and_ps(xweight1,xabsmask);
+        for(int i=0;i<4;i++){
+          tmp[i]&=msk;
+        }
         xweight1 = _mm_sub_ps(xconst4,xweight1);
         xweight1 = _mm_max_ps(xconst0,xweight1);
         xfactor1 = _mm_mul_ps(xval,xweight1);
@@ -1505,6 +1511,7 @@ void Elas::adaptiveMeanTest (float* D) {
   _mm_free(val);
   _mm_free(weight);
   _mm_free(factor);
+  free(tmp);
   free(D_copy);
   free(D_tmp);
   file.close();
