@@ -218,6 +218,8 @@ private:
 
   // optional postprocessing
   void adaptiveMean (float* D);
+  void adaptiveMeanTest (float* D);
+
   void median (float* D);
   
   // parameter set
