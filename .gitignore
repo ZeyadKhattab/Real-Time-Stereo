@@ -7,3 +7,5 @@ dataset
 *.exe
 *.exp
 *.lib
+libs/libelas/src/main.exe
+libs/libelas_parallel/img/

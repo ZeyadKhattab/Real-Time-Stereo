@@ -758,12 +758,12 @@ vector<support_pt> Elas::computeSupportMatches (uint8_t* I1_desc,uint8_t* I2_des
   cudaDeviceSynchronize();
 
 
-  ofstream file;
-  file.open ("disparity_parallel.txt");
-  for(int i=0;i<D_can_height;i++)
-  for(int j=0;j<D_can_width;j++)
-  file<<D_can[i*D_can_width+j]<<"\n";
-  file.close();
+  // ofstream file;
+  // file.open ("disparity_parallel.txt");
+  // for(int i=0;i<D_can_height;i++)
+  // for(int j=0;j<D_can_width;j++)
+  // file<<D_can[i*D_can_width+j]<<"\n";
+  // file.close();
   // remove inconsistent support points
   removeInconsistentSupportPoints(D_can,D_can_width,D_can_height);
   
@@ -1312,13 +1312,13 @@ void Elas::computeDisparity(vector<support_pt> p_support,vector<triangle> tri,in
   cudaDeviceSynchronize();
 
   delete[] P;
-  ofstream file;
-  file.open ("computedisparity_parallel.txt");
-  for(int i=0;i<height;i++)
-  for(int j=0;j<width;j++)
-  file<<D[i*width+j]<<"\n";
+  // ofstream file;
+  // file.open ("computedisparity_parallel.txt");
+  // for(int i=0;i<height;i++)
+  // for(int j=0;j<width;j++)
+  // file<<D[i*width+j]<<"\n";
 
-  file.close();
+  // file.close();
   
 }
 

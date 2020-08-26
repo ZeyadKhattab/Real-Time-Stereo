@@ -907,13 +907,13 @@ void Elas::computeDisparity(vector<support_pt> p_support,vector<triangle> tri,in
     }
     
   }
-  ofstream file;
-  file.open ("computedisparity.txt");
-  for(int i=0;i<height;i++)
-  for(int j=0;j<width;j++)
-  file<<D[i*width+j]<<"\n";
+  // ofstream file;
+  // file.open ("computedisparity.txt");
+  // for(int i=0;i<height;i++)
+  // for(int j=0;j<width;j++)
+  // file<<D[i*width+j]<<"\n";
 
-  file.close();
+  // file.close();
   delete[] P;
 }
 
