@@ -1293,6 +1293,16 @@ void Elas::gapInterpolation(float* D) {
     }
   }
 }
+void bitwise_and(float *a ){
+    float b=(((uint32_t)1)<<31)-1;
+    
+    for(int i=0;i<4;i++)
+        for (size_t j = 0; j < sizeof(float); j++)
+            reinterpret_cast<char*>(&a[i])[j]=
+                reinterpret_cast<char*>(&a[i])[j]&
+                reinterpret_cast<char*>(&b)[j];
+
+}
 void Elas::adaptiveMeanTest (float* D) {
   
   ofstream file;
@@ -1322,11 +1332,16 @@ void Elas::adaptiveMeanTest (float* D) {
   __m128 xconst0 = _mm_set1_ps(0); //4 32 bit numbers =0 
   __m128 xconst4 = _mm_set1_ps(4); //4 32 bit numbers =4 
   __m128 xval,xweight1,xweight2,xfactor1,xfactor2;
-  
+  float *afactor1=(float*)malloc(4*sizeof(float));
+  float *aval=(float*)malloc(4*sizeof(float));
+  float *afactor2=(float*)malloc(4*sizeof(float));
+
   float *val     = (float *)_mm_malloc(8*sizeof(float),16);
   float *weight  = (float*)_mm_malloc(4*sizeof(float),16);
   float *factor  = (float*)_mm_malloc(4*sizeof(float),16);
-  float *tmp=(float*)malloc(4*sizeof(float));
+  float *aweight1=(float*)malloc(4*sizeof(float));
+  float *aweight2=(float*)malloc(4*sizeof(float));
+
   // set absolute mask
   __m128 xabsmask = _mm_set1_ps(0x7FFFFFFF); // 2^31 - 1 
 
@@ -1422,32 +1437,59 @@ void Elas::adaptiveMeanTest (float* D) {
         xval     = _mm_load_ps(val);  // val[0...4[
         xweight1 = _mm_sub_ps(xval,_mm_set1_ps(val_curr)); // 4 *val_curr
         for(int i=0;i<4;i++){
-          tmp[i]=val[i]-val_curr;
+          aweight1[i]=val[i]-val_curr;
         }
         xweight1 = _mm_and_ps(xweight1,xabsmask);
-        for(int i=0;i<4;i++){
-          tmp[i]&=msk;
-        }
+       
+        bitwise_and(aweight1);
         xweight1 = _mm_sub_ps(xconst4,xweight1);
+        for(int i=0;i<4;i++){
+          aweight1[i]=4-aweight1[i];
+        }
         xweight1 = _mm_max_ps(xconst0,xweight1);
+         for(int i=0;i<4;i++){
+            if(aweight1[i]<0)
+              aweight1[i]=0;
+        }
         xfactor1 = _mm_mul_ps(xval,xweight1);
+        for(int i=0;i<4;i++){
+          afactor1[i]=val[i]*aweight1[i];
+        }
+        xval     = _mm_load_ps(val+4);
+        for(int i=0;i<4;i++)
+          aval[i]=val[i+4]; 
 
-        xval     = _mm_load_ps(val+4);      
         xweight2 = _mm_sub_ps(xval,_mm_set1_ps(val_curr));
+        for(int i=0;i<4;i++){
+          aweight2[i]=aval[i]-val_curr;
+        }
         xweight2 = _mm_and_ps(xweight2,xabsmask);
+        bitwise_and(aweight2);
+
         xweight2 = _mm_sub_ps(xconst4,xweight2);
+        for(int i=0;i<4;i++)
+          aweight2[i]=4-aweight2[i];
         xweight2 = _mm_max_ps(xconst0,xweight2);
+        for(int i=0;i<4;i++){
+            if(aweight2[i]<0)
+              aweight2[i]=0;
+        }
         xfactor2 = _mm_mul_ps(xval,xweight2);
-
+        for(int i=0;i<4;i++)
+        afactor2[i]=aval[i]*aweight2[i];
         xweight1 = _mm_add_ps(xweight1,xweight2);
+        for(int i=0;i<4;i++)
+        aweight1[i]=aweight1[i]+aweight2[i];
         xfactor1 = _mm_add_ps(xfactor1,xfactor2);
-
+        for(int i=0;i<4;i++)
+          afactor1[i]=afactor1[i]+afactor2[i];
         _mm_store_ps(weight,xweight1);
         _mm_store_ps(factor,xfactor1);
 
-        float weight_sum = weight[0]+weight[1]+weight[2]+weight[3];
-        float factor_sum = factor[0]+factor[1]+factor[2]+factor[3];
-        
+        // float weight_sum = weight[0]+weight[1]+weight[2]+weight[3];
+        // float factor_sum = factor[0]+factor[1]+factor[2]+factor[3];
+        float weight_sum = aweight1[0]+aweight1[1]+aweight1[2]+aweight1[3];
+        float factor_sum = afactor1[0]+afactor1[1]+afactor1[2]+afactor1[3];
         if (weight_sum>0) {
           float d = factor_sum/weight_sum;
           if (d>=0) {
@@ -1511,7 +1553,11 @@ void Elas::adaptiveMeanTest (float* D) {
   _mm_free(val);
   _mm_free(weight);
   _mm_free(factor);
-  free(tmp);
+  free(aweight1);
+  free(aweight2);
+  free(aval);
+  free(afactor1);
+  free(afactor2);
   free(D_copy);
   free(D_tmp);
   file.close();
