@@ -24,3 +24,7 @@ g++ -I .. convert.cpp -o convert -lpng
 
 g++ main.cpp elas.cpp descriptor.cpp matrix.cpp filter.cpp triangle.cpp -o main
 nvcc -arch compute_50 main.cpp elas.cu descriptor.cpp matrix.cpp filter.cpp triangle.cpp -o main
+
+g++ main.cpp elas.cpp descriptor.cpp matrix.cpp filter.cpp triangle.cpp -o main -DPROFILE
+
+nvcc main.cpp elas.cu descriptor.cpp matrix.cpp filter.cpp triangle.cpp -o main -DPROFILE
