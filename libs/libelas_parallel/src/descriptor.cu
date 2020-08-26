@@ -22,7 +22,6 @@ Street, Fifth Floor, Boston, MA 02110-1301, USA
 #include "descriptor.h"
 #include "filter.h"
 #include <emmintrin.h>
-#include <fstream>
 using namespace std;
 
 Descriptor::Descriptor(uint8_t* I,int32_t width,int32_t height,int32_t bpl,bool half_resolution) {
@@ -42,10 +41,10 @@ Descriptor::~Descriptor() {
 __global__ void createDescriptorKernel(uint8_t* I_du,uint8_t* I_dv,uint8_t* I_desc,int32_t width,int32_t height,int32_t bpl,bool half_resolution){
   int u,v;
   int idx=blockIdx.x*blockDim.x + threadIdx.x;
-  v=idx/width;
-  u=idx%width;
+  v=idx/(width-6)+3;
+  u=idx%(width-6)+3;
 
-  if(v<3 || v>=height-3  || u<3 || u>=width-3)
+  if(v>=height-3  || u>=width-3)
   return;
   if(half_resolution && v%2==1)
   return;
@@ -89,21 +88,14 @@ void Descriptor::createDescriptor (uint8_t* I_du,uint8_t* I_dv,int32_t width,int
   size=16*width*height*sizeof(uint8_t);
   cudaMalloc(&d_I_desc,size);
   int threadsPerBlock=1024;
-  int numBlocks=(width*height+threadsPerBlock-1)/threadsPerBlock;
+  int numBlocks=((width-6)*(height-6)+threadsPerBlock-1)/threadsPerBlock;
   createDescriptorKernel<<<numBlocks,threadsPerBlock>>>(d_I_du,d_I_dv,d_I_desc,width,height,bpl,half_resolution);
   cudaMemcpy(I_desc,d_I_desc,size,cudaMemcpyDeviceToHost);
-  cudaDeviceSynchronize();
+  // cudaDeviceSynchronize();
   cudaFree(d_I_du);
   cudaFree(d_I_dv);
   cudaFree(d_I_desc);
 
-  // ofstream file;
-  // file.open("desc_parallel.txt");
-  // for(int i=0;i<height;i++)
-  //   for(int j=0;j<width;j++)
-
-  //   for(int k=0;k<16;k++)
-  //     file<<(int)I_desc[16*(width*i+j)+k]<<"\n";
-  // file.close();
+ 
 
 }
