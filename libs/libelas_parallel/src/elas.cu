@@ -145,8 +145,8 @@ void Elas::hello(int x){
     timer.start("Adaptive Mean");
 #endif
     adaptiveMean(D1);
-    if (!param.postprocess_only_left)
-      adaptiveMean(D2);
+    // if (!param.postprocess_only_left)
+    //   adaptiveMean(D2);
   }
 
   if (param.filter_median) {
@@ -1698,10 +1698,161 @@ void Elas::gapInterpolation(float* D) {
     }
   }
 }
+__device__ void bitwise_and(float *a ){
+  float b=(((uint32_t)1)<<31)-1;
+  
+  for(int i=0;i<4;i++)
+      for (size_t j = 0; j < sizeof(float); j++)
+          reinterpret_cast<char*>(&a[i])[j]=
+              reinterpret_cast<char*>(&a[i])[j]&
+              reinterpret_cast<char*>(&b)[j];
 
+}
+__global__ void adaptiveMeanKernelHorizontal(float *D_copy,int32_t D_width,float *D_tmp,int32_t D_height ){
+  int32_t v,u,u2;
+  int idx=blockIdx.x*blockDim.x + threadIdx.x;
+  v=idx/(D_width-7)+3;
+  u=idx%(D_width-7)+7;
+  if(v>=D_height-3 || u>=D_width)
+  return ;
+
+  float val [8],aweight1[4],aweight2[4],afactor1[4],afactor2[4],aval[4];
+ 
+  
+
+  u2=u%8;
+  for(int i=0;i<8;i++){
+    val[u2] = *(D_copy+v*D_width+u-i);
+    u2--;
+    if(u2<0)
+    u2=7;
+
+  }
+  float val_curr = *(D_copy+v*D_width+(u-3));
+  for(int i=0;i<4;i++)
+    aweight1[i]=val[i]-val_curr;
+        
+  bitwise_and(aweight1);
+
+
+  for(int i=0;i<4;i++){
+      aweight1[i]=4-aweight1[i];
+      if(aweight1[i]<0)
+          aweight1[i]=0;
+  }
+      
+  for(int i=0;i<4;i++)
+    afactor1[i]=val[i]*aweight1[i];
+    
+  for(int i=0;i<4;i++)
+    aval[i]=val[i+4]; 
+
+  for(int i=0;i<4;i++){
+    aweight2[i]=aval[i]-val_curr;
+  }
+  bitwise_and(aweight2);
+
+    
+  for(int i=0;i<4;i++){
+    aweight2[i]=4-aweight2[i];
+    if(aweight2[i]<0)
+      aweight2[i]=0;
+  }
+
+  for(int i=0;i<4;i++)
+    afactor2[i]=aval[i]*aweight2[i];
+  for(int i=0;i<4;i++)
+    aweight1[i]=aweight1[i]+aweight2[i];
+  for(int i=0;i<4;i++)
+    afactor1[i]=afactor1[i]+afactor2[i];
+    
+  float weight_sum = aweight1[0]+aweight1[1]+aweight1[2]+aweight1[3];
+  float factor_sum = afactor1[0]+afactor1[1]+afactor1[2]+afactor1[3];
+  if (weight_sum>0) {
+    float d = factor_sum/weight_sum;
+    if (d>=0) {
+    *(D_tmp+v*D_width+(u-3)) = d;
+      // file<<v<<" "<<u<<" "<<d<<"\n";
+      // printf("%d %d %f\n",v,u,d);
+    }
+  }
+      
+}
+
+__global__ void adaptiveMeanKernelVertical(float *D_tmp,int32_t D_width,float *D,int32_t D_height ){
+  int32_t v,u,v2;
+  int idx=blockIdx.x*blockDim.x + threadIdx.x;
+  u=idx/(D_height-7)+3;
+  v=idx%(D_height-7)+7;
+  if(v>=D_height || u>=D_width-3)
+  return ;
+
+  float val [8],aweight1[4],aweight2[4],afactor1[4],afactor2[4],aval[4];
+ 
+  
+
+  v2=v%8;
+  for(int i=0;i<8;i++){
+    val[v2] = *(D_tmp+(v-i)*D_width+u);
+    v2--;
+    if(v2<0)
+    v2=7;
+
+  }
+  float val_curr = *(D_tmp+(v-3)*D_width+u);
+  for(int i=0;i<4;i++)
+    aweight1[i]=val[i]-val_curr;
+        
+  bitwise_and(aweight1);
+
+
+  for(int i=0;i<4;i++){
+      aweight1[i]=4-aweight1[i];
+      if(aweight1[i]<0)
+          aweight1[i]=0;
+  }
+      
+  for(int i=0;i<4;i++)
+    afactor1[i]=val[i]*aweight1[i];
+    
+  for(int i=0;i<4;i++)
+    aval[i]=val[i+4]; 
+
+  for(int i=0;i<4;i++){
+    aweight2[i]=aval[i]-val_curr;
+  }
+  bitwise_and(aweight2);
+
+    
+  for(int i=0;i<4;i++){
+    aweight2[i]=4-aweight2[i];
+    if(aweight2[i]<0)
+      aweight2[i]=0;
+  }
+
+  for(int i=0;i<4;i++)
+    afactor2[i]=aval[i]*aweight2[i];
+  for(int i=0;i<4;i++)
+    aweight1[i]=aweight1[i]+aweight2[i];
+  for(int i=0;i<4;i++)
+    afactor1[i]=afactor1[i]+afactor2[i];
+    
+  float weight_sum = aweight1[0]+aweight1[1]+aweight1[2]+aweight1[3];
+  float factor_sum = afactor1[0]+afactor1[1]+afactor1[2]+afactor1[3];
+  if (weight_sum>0) {
+    float d = factor_sum/weight_sum;
+    if (d>=0) {
+      *(D+(v-3)*D_width+u) = d;
+      // file<<v<<" "<<u<<" "<<d<<"\n";
+      // printf("%d %d %f\n",v,u,d);
+    }
+  }
+      
+}
 // implements approximation to bilateral filtering
 void Elas::adaptiveMean (float* D) {
-  
+  ofstream file;
+  file.open("mean_parallel.txt");
   // get disparity image dimensions
   int32_t D_width          = width;
   int32_t D_height         = height;
@@ -1724,187 +1875,52 @@ void Elas::adaptiveMean (float* D) {
     }
   }
   
-  __m128 xconst0 = _mm_set1_ps(0);
-  __m128 xconst4 = _mm_set1_ps(4);
-  __m128 xval,xweight1,xweight2,xfactor1,xfactor2;
-  
-  float *val     = (float *)_mm_malloc(8*sizeof(float),16);
-  float *weight  = (float*)_mm_malloc(4*sizeof(float),16);
-  float *factor  = (float*)_mm_malloc(4*sizeof(float),16);
-  
-  // set absolute mask
-  __m128 xabsmask = _mm_set1_ps(0x7FFFFFFF);
-  
+  float *d_D_copy,*d_D_tmp,*d_D;
+  size_t size;
+  cudaMalloc(&d_D_copy,size);
+  cudaMalloc(&d_D_tmp,size);
+  cudaMalloc(&d_D,size);
+
+
   // when doing subsampling: 4 pixel bilateral filter width
   if (param.subsampling) {
   
-    // horizontal filter
-    for (int32_t v=3; v<D_height-3; v++) {
-
-      // init
-      for (int32_t u=0; u<3; u++)
-        val[u] = *(D_copy+v*D_width+u);
-
-      // loop
-      for (int32_t u=3; u<D_width; u++) {
-
-        // set
-        float val_curr = *(D_copy+v*D_width+(u-1));
-        val[u%4] = *(D_copy+v*D_width+u);
-
-        xval     = _mm_load_ps(val);      
-        xweight1 = _mm_sub_ps(xval,_mm_set1_ps(val_curr));
-        xweight1 = _mm_and_ps(xweight1,xabsmask);
-        xweight1 = _mm_sub_ps(xconst4,xweight1);
-        xweight1 = _mm_max_ps(xconst0,xweight1);
-        xfactor1 = _mm_mul_ps(xval,xweight1);
-
-        _mm_store_ps(weight,xweight1);
-        _mm_store_ps(factor,xfactor1);
-
-        float weight_sum = weight[0]+weight[1]+weight[2]+weight[3];
-        float factor_sum = factor[0]+factor[1]+factor[2]+factor[3];
-        
-        if (weight_sum>0) {
-          float d = factor_sum/weight_sum;
-          if (d>=0) *(D_tmp+v*D_width+(u-1)) = d;
-        }
-      }
-    }
-
-    // vertical filter
-    for (int32_t u=3; u<D_width-3; u++) {
-
-      // init
-      for (int32_t v=0; v<3; v++)
-        val[v] = *(D_tmp+v*D_width+u);
-
-      // loop
-      for (int32_t v=3; v<D_height; v++) {
-
-        // set
-        float val_curr = *(D_tmp+(v-1)*D_width+u);
-        val[v%4] = *(D_tmp+v*D_width+u);
-
-        xval     = _mm_load_ps(val);      
-        xweight1 = _mm_sub_ps(xval,_mm_set1_ps(val_curr));
-        xweight1 = _mm_and_ps(xweight1,xabsmask);
-        xweight1 = _mm_sub_ps(xconst4,xweight1);
-        xweight1 = _mm_max_ps(xconst0,xweight1);
-        xfactor1 = _mm_mul_ps(xval,xweight1);
-
-        _mm_store_ps(weight,xweight1);
-        _mm_store_ps(factor,xfactor1);
-
-        float weight_sum = weight[0]+weight[1]+weight[2]+weight[3];
-        float factor_sum = factor[0]+factor[1]+factor[2]+factor[3];
-        
-        if (weight_sum>0) {
-          float d = factor_sum/weight_sum;
-          if (d>=0) *(D+(v-1)*D_width+u) = d;
-        }
-      }
-    }
     
   // full resolution: 8 pixel bilateral filter width
   } else {
-    
-  
+    size=D_width*D_height*sizeof(float);
+
+    cudaMemcpy(d_D_copy,D_copy,size,cudaMemcpyHostToDevice);
+    cudaMemcpy(d_D_tmp,D_tmp,size,cudaMemcpyHostToDevice);
     // horizontal filter
-    for (int32_t v=3; v<D_height-3; v++) {
-
-      // init
-      for (int32_t u=0; u<7; u++)
-        val[u] = *(D_copy+v*D_width+u);
-
-      // loop
-      for (int32_t u=7; u<D_width; u++) {
-
-        // set
-        float val_curr = *(D_copy+v*D_width+(u-3));
-        val[u%8] = *(D_copy+v*D_width+u);
-
-        xval     = _mm_load_ps(val);      
-        xweight1 = _mm_sub_ps(xval,_mm_set1_ps(val_curr));
-        xweight1 = _mm_and_ps(xweight1,xabsmask);
-        xweight1 = _mm_sub_ps(xconst4,xweight1);
-        xweight1 = _mm_max_ps(xconst0,xweight1);
-        xfactor1 = _mm_mul_ps(xval,xweight1);
-
-        xval     = _mm_load_ps(val+4);      
-        xweight2 = _mm_sub_ps(xval,_mm_set1_ps(val_curr));
-        xweight2 = _mm_and_ps(xweight2,xabsmask);
-        xweight2 = _mm_sub_ps(xconst4,xweight2);
-        xweight2 = _mm_max_ps(xconst0,xweight2);
-        xfactor2 = _mm_mul_ps(xval,xweight2);
-
-        xweight1 = _mm_add_ps(xweight1,xweight2);
-        xfactor1 = _mm_add_ps(xfactor1,xfactor2);
-
-        _mm_store_ps(weight,xweight1);
-        _mm_store_ps(factor,xfactor1);
-
-        float weight_sum = weight[0]+weight[1]+weight[2]+weight[3];
-        float factor_sum = factor[0]+factor[1]+factor[2]+factor[3];
-        
-        if (weight_sum>0) {
-          float d = factor_sum/weight_sum;
-          if (d>=0) *(D_tmp+v*D_width+(u-3)) = d;
-        }
-      }
-    }
-  
+    int numThreads=(D_height-6) * (D_width-7);
+    int threadsPerBlock=32;
+    int numBlocks=(numThreads+threadsPerBlock-1)/threadsPerBlock;
+    adaptiveMeanKernelHorizontal<<<numBlocks,threadsPerBlock>>>(d_D_copy,D_width,d_D_tmp,D_height);
+    cudaDeviceSynchronize();
+    // cudaMemcpy(D_tmp,d_D_tmp,size,cudaMemcpyDeviceToHost);
     // vertical filter
-    for (int32_t u=3; u<D_width-3; u++) {
 
-      // init
-      for (int32_t v=0; v<7; v++)
-        val[v] = *(D_tmp+v*D_width+u);
 
-      // loop
-      for (int32_t v=7; v<D_height; v++) {
+    cudaMemcpy(d_D,D,size,cudaMemcpyHostToDevice);
 
-        // set
-        float val_curr = *(D_tmp+(v-3)*D_width+u);
-        val[v%8] = *(D_tmp+v*D_width+u);
+    numThreads=(D_width-6) * (D_height-7);
+    numBlocks=(numThreads+threadsPerBlock-1)/threadsPerBlock;
+    adaptiveMeanKernelVertical<<<numBlocks,threadsPerBlock>>>(d_D_tmp,D_width,d_D,D_height);
+    cudaDeviceSynchronize();
+    cudaMemcpy(D,d_D,size,cudaMemcpyDeviceToHost);
 
-        xval     = _mm_load_ps(val);      
-        xweight1 = _mm_sub_ps(xval,_mm_set1_ps(val_curr));
-        xweight1 = _mm_and_ps(xweight1,xabsmask);
-        xweight1 = _mm_sub_ps(xconst4,xweight1);
-        xweight1 = _mm_max_ps(xconst0,xweight1);
-        xfactor1 = _mm_mul_ps(xval,xweight1);
-
-        xval     = _mm_load_ps(val+4);      
-        xweight2 = _mm_sub_ps(xval,_mm_set1_ps(val_curr));
-        xweight2 = _mm_and_ps(xweight2,xabsmask);
-        xweight2 = _mm_sub_ps(xconst4,xweight2);
-        xweight2 = _mm_max_ps(xconst0,xweight2);
-        xfactor2 = _mm_mul_ps(xval,xweight2);
-
-        xweight1 = _mm_add_ps(xweight1,xweight2);
-        xfactor1 = _mm_add_ps(xfactor1,xfactor2);
-
-        _mm_store_ps(weight,xweight1);
-        _mm_store_ps(factor,xfactor1);
-
-        float weight_sum = weight[0]+weight[1]+weight[2]+weight[3];
-        float factor_sum = factor[0]+factor[1]+factor[2]+factor[3];
-        
-        if (weight_sum>0) {
-          float d = factor_sum/weight_sum;
-          if (d>=0) *(D+(v-3)*D_width+u) = d;
-        }
-      }
-    }
   }
   
   // free memory
-  _mm_free(val);
-  _mm_free(weight);
-  _mm_free(factor);
+  for(int i=0;i<D_height*D_width;i++)
+    file<<D[i]<<"\n";
+  file.close();
   free(D_copy);
   free(D_tmp);
+  cudaFree(d_D_tmp);
+  cudaFree(d_D_copy);
+  cudaFree(d_D);
 }
 
 void Elas::median (float* D) {
